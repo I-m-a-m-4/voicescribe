@@ -17,21 +17,25 @@ function findAudioFromElement(element) {
   if (!element) return null;
 
   // Direct audio element
-  if (element.tagName === "AUDIO") return element;
+  if (element.tagName === "AUDIO" && element.src) return element;
+
+  // Check element itself
+  const directAudio = element.querySelector && element.querySelector("audio");
+  if (directAudio && directAudio.src) return directAudio;
 
   // Check parent message bubble / row
-  const bubble = element.closest("[data-id], .message-in, .message-out, div[role='row'], div[role='region']") || element.closest("div");
+  const bubble = element.closest("[data-id], .message-in, .message-out, div[role='row'], div[role='region'], div[tabindex='-1']") || element.closest("div");
   if (bubble) {
     const audio = bubble.querySelector("audio");
-    if (audio) return audio;
+    if (audio && audio.src) return audio;
   }
 
-  // Fallback: Check if there's any active/playing or recently loaded audio
-  const audios = Array.from(document.querySelectorAll("audio"));
+  // Fallback: Check if there's any active/playing audio on page
+  const audios = Array.from(document.querySelectorAll("audio")).filter((a) => a.src);
   if (audios.length > 0) {
     const playing = audios.find((a) => !a.paused);
     if (playing) return playing;
-    return audios[audios.length - 1];
+    return audios[audios.length - 1]; // Return most recently loaded
   }
 
   return null;
@@ -41,22 +45,33 @@ async function handleContextMenuTrigger(srcUrl) {
   let audioUrl = srcUrl;
 
   if (!audioUrl && lastRightClickedElement) {
-    const audio = findAudioFromElement(lastRightClickedElement);
+    let audio = findAudioFromElement(lastRightClickedElement);
+    
+    // If not found yet, try clicking play on the voice note to trigger WhatsApp's audio loader
+    if (!audio) {
+      const playBtn = lastRightClickedElement.closest("div[role='row'], .message-in, .message-out, div")?.querySelector("button, [role='button'], span[data-icon='audio-play'], [data-testid='audio-play']");
+      if (playBtn) {
+        playBtn.click();
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        audio = findAudioFromElement(lastRightClickedElement);
+      }
+    }
+
     if (audio && audio.src) {
       audioUrl = audio.src;
     }
   }
 
   if (!audioUrl) {
-    // Check if any audio exists in document
-    const anyAudio = document.querySelector("audio");
+    // Check if any audio exists anywhere in document
+    const anyAudio = Array.from(document.querySelectorAll("audio")).find((a) => a.src);
     if (anyAudio && anyAudio.src) {
       audioUrl = anyAudio.src;
     }
   }
 
   if (!audioUrl) {
-    showHudError("No audio found. Right-click directly on the voice note player or play it once first.");
+    showHudError("No audio found. Click play on the voice note once, then right-click to transcribe.");
     return;
   }
 
@@ -215,21 +230,37 @@ function escapeHtml(string) {
 function injectWhatsAppBadges() {
   if (!window.location.hostname.includes("whatsapp.com")) return;
 
-  const audios = document.querySelectorAll("audio");
-  audios.forEach((audio) => {
-    const parentBubble = audio.closest("div[role='row'], .message-in, .message-out") || audio.parentElement;
+  // Find all audio elements or play buttons in WhatsApp
+  const voiceContainers = document.querySelectorAll(
+    "div[role='row'] audio, .message-in audio, .message-out audio, [data-icon='audio-play'], [data-testid='audio-play'], [data-icon='audio-pause'], [data-testid='audio-pause']"
+  );
+
+  voiceContainers.forEach((item) => {
+    const parentBubble = item.closest("div[role='row'], .message-in, .message-out") || item.closest("div");
     if (parentBubble && !parentBubble.querySelector(".voicescribe-wa-btn")) {
       const btn = document.createElement("button");
       btn.className = "voicescribe-wa-btn";
       btn.innerHTML = "🎙️ Transcribe";
       btn.title = "Transcribe this voice note with VoiceScribe AI";
-      btn.addEventListener("click", (e) => {
+      btn.addEventListener("click", async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (audio.src) {
+
+        let audio = parentBubble.querySelector("audio");
+        if (!audio || !audio.src) {
+          // Trigger play button to load audio blob
+          const playBtn = parentBubble.querySelector("button, [role='button'], [data-icon='audio-play'], [data-testid='audio-play']");
+          if (playBtn) {
+            playBtn.click();
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            audio = parentBubble.querySelector("audio");
+          }
+        }
+
+        if (audio && audio.src) {
           processAudioUrl(audio.src);
         } else {
-          showHudError("Audio not loaded yet. Click play once then transcribe.");
+          showHudError("Audio is still buffering. Click play once then transcribe.");
         }
       });
       parentBubble.appendChild(btn);
@@ -242,3 +273,5 @@ const observer = new MutationObserver(() => {
   injectWhatsAppBadges();
 });
 observer.observe(document.body, { childList: true, subtree: true });
+// Run once on initial load
+setTimeout(injectWhatsAppBadges, 2000);

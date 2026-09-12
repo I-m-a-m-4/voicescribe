@@ -28,7 +28,7 @@ export default function Home() {
     recordTranscriptionSuccess,
   } = useAuth();
 
-  const handleFileSelect = (selectedFile: File) => {
+  const handleFileSelect = (selectedFile: File | null) => {
     setFile(selectedFile);
     setError(null);
     setTranscription(null);

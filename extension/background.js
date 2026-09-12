@@ -2,15 +2,30 @@
 
 const API_ENDPOINT = "https://usevoicescribe.vercel.app/api/transcribe";
 
-// Create Context Menu on install
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "voicescribe-transcribe",
-    title: "🎙️ Transcribe with VoiceScribe",
-    contexts: ["audio", "link", "page", "selection"]
-  });
-  console.log("VoiceScribe context menu created.");
-});
+// Register Context Menu with "all" contexts so it ALWAYS appears on WhatsApp Web
+function setupContextMenu() {
+  try {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: "voicescribe-transcribe",
+        title: "🎙️ Transcribe with VoiceScribe",
+        contexts: ["all"]
+      }, () => {
+        if (chrome.runtime.lastError) {
+          console.log("VoiceScribe context menu notice:", chrome.runtime.lastError.message);
+        } else {
+          console.log("VoiceScribe context menu successfully created with ['all'] contexts.");
+        }
+      });
+    });
+  } catch (err) {
+    console.error("Error setting up context menu:", err);
+  }
+}
+
+chrome.runtime.onInstalled.addListener(setupContextMenu);
+chrome.runtime.onStartup.addListener(setupContextMenu);
+setupContextMenu();
 
 // Handle Context Menu Click
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -26,7 +41,11 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 // Handle API requests from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "VOICESCRIBE_TRANSCRIBE_BASE64") {
-    handleTranscribeBase64(request.base64Data, request.mimeType || "audio/ogg", request.filename || "whatsapp_audio.ogg")
+    handleTranscribeBase64(
+      request.base64Data,
+      request.mimeType || "audio/ogg",
+      request.filename || "whatsapp_audio.ogg"
+    )
       .then((result) => sendResponse({ success: true, text: result.text }))
       .catch((err) => sendResponse({ success: false, error: err.message }));
     return true; // Keep message channel open for async response
