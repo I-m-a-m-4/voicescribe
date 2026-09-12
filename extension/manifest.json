@@ -14,6 +14,12 @@
     "default_icon": "icon.png"
   },
   "permissions": [
-    "activeTab"
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://usevoicescribe.vercel.app/*",
+    "http://localhost:3000/*",
+    "http://localhost:3001/*"
   ]
 }

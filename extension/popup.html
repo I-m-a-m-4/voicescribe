@@ -12,8 +12,8 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         body {
-            width: 480px;
-            height: 620px;
+            width: 500px;
+            height: 640px;
             background-color: #09090b;
             color: #ffffff;
             display: flex;
@@ -25,9 +25,9 @@
             align-items: center;
             justify-content: space-between;
             padding: 10px 14px;
-            background: rgba(18, 18, 20, 0.9);
+            background: rgba(18, 18, 20, 0.95);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(10px);
             z-index: 10;
         }
         .brand {
@@ -40,47 +40,67 @@
             font-weight: 700;
         }
         .brand img {
-            width: 22px;
-            height: 22px;
+            width: 24px;
+            height: 24px;
             border-radius: 6px;
+        }
+        .brand .status-dot {
+            width: 7px;
+            height: 7px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px #22c55e;
         }
         .controls {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
-        .port-select {
+        .server-select {
             background: rgba(255, 255, 255, 0.08);
             border: 1px solid rgba(255, 255, 255, 0.15);
             color: #fb923c;
             font-size: 11px;
             font-weight: 600;
-            padding: 3px 6px;
+            padding: 4px 6px;
             border-radius: 6px;
             cursor: pointer;
             outline: none;
         }
-        .port-select option {
+        .server-select option {
             background: #18181b;
             color: #fff;
         }
-        .btn-open-tab {
+        .btn-action {
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            background: #ea580c;
-            color: #ffffff;
             font-size: 11px;
             font-weight: 600;
-            padding: 4px 10px;
+            padding: 5px 9px;
             border-radius: 6px;
             text-decoration: none;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.2s;
             border: none;
         }
-        .btn-open-tab:hover {
+        .btn-primary {
+            background: #ea580c;
+            color: #ffffff;
+        }
+        .btn-primary:hover {
             background: #f97316;
+            box-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: #e4e4e7;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
         }
         .iframe-container {
             flex: 1;
@@ -94,6 +114,25 @@
             border: none;
             background: #09090b;
         }
+        .banner-tip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+            background: rgba(234, 88, 12, 0.12);
+            border-bottom: 1px solid rgba(234, 88, 12, 0.25);
+            font-size: 11px;
+            color: #fdba74;
+        }
+        .banner-tip span {
+            font-weight: 500;
+        }
+        .banner-tip a {
+            color: #fff;
+            text-decoration: underline;
+            cursor: pointer;
+            font-weight: 600;
+        }
         .offline-message {
             display: none;
             position: absolute;
@@ -104,97 +143,114 @@
             align-items: center;
             justify-content: center;
             text-align: center;
+            z-index: 5;
         }
         .offline-message.visible {
             display: flex;
         }
         .offline-icon {
-            width: 48px;
-            height: 48px;
+            width: 52px;
+            height: 52px;
             background: rgba(234, 88, 12, 0.15);
             color: #f97316;
-            border-radius: 12px;
+            border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 16px;
         }
         .offline-title {
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 17px;
+            font-weight: 700;
             margin-bottom: 8px;
         }
         .offline-desc {
             font-size: 12px;
-            color: rgba(255, 255, 255, 0.6);
+            color: rgba(255, 255, 255, 0.7);
             margin-bottom: 20px;
             line-height: 1.5;
-            max-width: 320px;
-        }
-        .cmd-box {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-family: monospace;
-            font-size: 12px;
-            color: #fb923c;
-            margin-bottom: 16px;
+            max-width: 340px;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <a href="#" class="brand" id="brandLink">
+        <a href="#" class="brand" id="brandLink" title="VoiceScribe">
             <img src="icon.png" alt="VoiceScribe">
             <span>VoiceScribe</span>
+            <span class="status-dot" title="Live & Connected"></span>
         </a>
         <div class="controls">
-            <select id="serverSelect" class="port-select">
-                <option value="http://localhost:3000">localhost:3000</option>
+            <select id="serverSelect" class="server-select" title="Switch between Live Site and Localhost">
+                <option value="https://usevoicescribe.vercel.app">Live Cloud (Vercel)</option>
                 <option value="http://localhost:3001">localhost:3001</option>
-                <option value="https://voicescribe.vercel.app">Vercel Web App</option>
+                <option value="http://localhost:3000">localhost:3000</option>
             </select>
-            <button id="openTabBtn" class="btn-open-tab" title="Open full VoiceScribe web app in a browser tab">
-                Full Tab ↗
+            <button id="openMiniWindowBtn" class="btn-action btn-primary" title="Open floating mini window (Recommended for microphone & Google login)">
+                Mini App 🗗
+            </button>
+            <button id="openTabBtn" class="btn-action btn-secondary" title="Open full VoiceScribe in a new browser tab">
+                Tab ↗
             </button>
         </div>
     </div>
 
+    <div class="banner-tip">
+        <span>💡 For recording in Brave, use <strong>Mini App</strong> or <strong>Tab</strong> for mic access</span>
+    </div>
+
     <div class="iframe-container">
-        <iframe id="appFrame" src="http://localhost:3000" allow="microphone; clipboard-write"></iframe>
+        <iframe 
+            id="appFrame" 
+            src="https://usevoicescribe.vercel.app" 
+            allow="microphone *; camera *; clipboard-write; clipboard-read; display-capture">
+        </iframe>
         
         <div id="offlineCard" class="offline-message">
             <div class="offline-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
                     <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
                     <line x1="12" x2="12" y1="19" y2="22"/>
                 </svg>
             </div>
-            <div class="offline-title">Connecting to VoiceScribe...</div>
+            <div class="offline-title">Opening VoiceScribe Live...</div>
             <div class="offline-desc">
-                If running locally, make sure your dev server is active in terminal:
+                If the embedded view is shielded by Brave, click below to launch VoiceScribe in a standalone window or new tab.
             </div>
-            <div class="cmd-box">npm run dev</div>
-            <button id="retryBtn" class="btn-open-tab" style="padding: 8px 16px; font-size: 12px;">
-                Switch to Port 3001 or Retry
-            </button>
+            <div style="display: flex; gap: 10px;">
+                <button id="retryMiniBtn" class="btn-action btn-primary" style="padding: 9px 18px; font-size: 12px;">
+                    Launch Mini App 🗗
+                </button>
+                <button id="retryTabBtn" class="btn-action btn-secondary" style="padding: 9px 18px; font-size: 12px;">
+                    Open in Tab ↗
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
+        const DEFAULT_URL = 'https://usevoicescribe.vercel.app';
         const appFrame = document.getElementById('appFrame');
         const serverSelect = document.getElementById('serverSelect');
+        const openMiniWindowBtn = document.getElementById('openMiniWindowBtn');
         const openTabBtn = document.getElementById('openTabBtn');
         const brandLink = document.getElementById('brandLink');
         const offlineCard = document.getElementById('offlineCard');
-        const retryBtn = document.getElementById('retryBtn');
+        const retryMiniBtn = document.getElementById('retryMiniBtn');
+        const retryTabBtn = document.getElementById('retryTabBtn');
 
-        // Restore saved server URL preference or test ports
-        const savedUrl = localStorage.getItem('voicescribe_ext_url') || 'http://localhost:3000';
-        serverSelect.value = savedUrl;
-        appFrame.src = savedUrl;
+        // Always prioritize the live cloud URL unless user specifically switched to localhost
+        let targetUrl = localStorage.getItem('voicescribe_ext_url');
+        if (!targetUrl || targetUrl.includes('voicescribe.vercel.app') || targetUrl.includes('localhost')) {
+            // Default to live site
+            if (!targetUrl || targetUrl.includes('voicescribe.vercel.app')) {
+                targetUrl = DEFAULT_URL;
+            }
+        }
+        
+        serverSelect.value = targetUrl;
+        appFrame.src = targetUrl;
 
         serverSelect.addEventListener('change', (e) => {
             const url = e.target.value;
@@ -203,8 +259,25 @@
             offlineCard.classList.remove('visible');
         });
 
+        // Open in floating mini popup window (ideal for Brave microphone permission & Google OAuth)
+        const openMiniWindow = () => {
+            const url = serverSelect.value || DEFAULT_URL;
+            if (typeof chrome !== 'undefined' && chrome.windows) {
+                chrome.windows.create({
+                    url: url,
+                    type: 'popup',
+                    width: 480,
+                    height: 720,
+                    focused: true
+                });
+            } else {
+                window.open(url, 'VoiceScribeMini', 'width=480,height=720,menubar=no,toolbar=no,location=no');
+            }
+        };
+
+        // Open in full browser tab
         const openInNewTab = () => {
-            const url = serverSelect.value;
+            const url = serverSelect.value || DEFAULT_URL;
             if (typeof chrome !== 'undefined' && chrome.tabs) {
                 chrome.tabs.create({ url: url });
             } else {
@@ -212,31 +285,25 @@
             }
         };
 
+        openMiniWindowBtn.addEventListener('click', openMiniWindow);
+        retryMiniBtn.addEventListener('click', openMiniWindow);
         openTabBtn.addEventListener('click', openInNewTab);
+        retryTabBtn.addEventListener('click', openInNewTab);
         brandLink.addEventListener('click', (e) => {
             e.preventDefault();
-            openInNewTab();
+            openMiniWindow();
         });
 
-        retryBtn.addEventListener('click', () => {
-            const nextUrl = serverSelect.value === 'http://localhost:3000' ? 'http://localhost:3001' : 'http://localhost:3000';
-            serverSelect.value = nextUrl;
-            localStorage.setItem('voicescribe_ext_url', nextUrl);
-            appFrame.src = nextUrl;
-            offlineCard.classList.remove('visible');
-        });
-
-        // If iframe fails to load after 4 seconds, show offline tips
+        // Offline / Shield fallback detection
         let loadTimeout = setTimeout(() => {
-            // Check if iframe loaded successfully
             try {
-                if (!appFrame.contentWindow || appFrame.contentDocument === null) {
+                if (!appFrame.contentWindow) {
                     offlineCard.classList.add('visible');
                 }
             } catch (err) {
                 // Cross-origin loaded is actually successful
             }
-        }, 4000);
+        }, 5000);
 
         appFrame.addEventListener('load', () => {
             clearTimeout(loadTimeout);
