@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Mic2, LayoutDashboard } from 'lucide-react';
+import { Mic2 } from 'lucide-react';
 
 export default function Navbar() {
   return (
@@ -17,19 +17,15 @@ export default function Navbar() {
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <Link 
-              href="/dashboard"
-              className="text-sm font-medium text-gray-300 hover:text-white transition-colors flex items-center gap-2"
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              Dashboard
-            </Link>
-            <Link
-              href="/dashboard"
+            <a href="#features" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
+              Features
+            </a>
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
               className="px-4 py-2 rounded-full bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_20px_rgba(79,70,229,0.5)]"
             >
               Get Started
-            </Link>
+            </button>
           </div>
         </div>
       </div>
