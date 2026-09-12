@@ -2,20 +2,12 @@
   <!-- Smooth Vibrant Orange Rounded Square -->
   <rect width="512" height="512" rx="102.4" fill="#f97316"/>
 
-  <!-- VoiceScribe Microphone & Audio Wave Icon in Pure White -->
-  <g transform="translate(68, 64) scale(16)" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <!-- Microphone Capsule -->
-    <rect x="5" y="2.5" width="6" height="10" rx="3" />
-    
-    <!-- Microphone Cradle -->
-    <path d="M 2 9.5 a 6 6 0 0 0 12 0" />
-    
-    <!-- Stand & Base -->
-    <line x1="8" y1="15.5" x2="8" y2="20" />
-    <line x1="5" y1="20" x2="11" y2="20" />
-    
-    <!-- Sound Waves / Audio Waves -->
-    <path d="M 15.5 7.5 a 5 5 0 0 1 0 7" />
-    <path d="M 19 4.5 a 9.5 9.5 0 0 1 0 13" />
+  <!-- VoiceScribe Equalizer Audio Waveform in Pure White -->
+  <g transform="translate(64, 64) scale(16)" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <line x1="6" y1="9" x2="6" y2="15" />
+    <line x1="9" y1="6" x2="9" y2="18" />
+    <line x1="12" y1="3.5" x2="12" y2="20.5" />
+    <line x1="15" y1="6" x2="15" y2="18" />
+    <line x1="18" y1="9" x2="18" y2="15" />
   </g>
 </svg>

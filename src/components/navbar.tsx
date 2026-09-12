@@ -40,8 +40,8 @@ export default function Navbar() {
           {/* Brand Logo */}
           <div className="flex-shrink-0">
             <Link href="/" className="flex items-center gap-3">
-              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 shadow-sm">
-                <Image src="/logo.jpg" alt="VoiceScribe Logo" fill className="object-cover" />
+              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-orange-500/20 shadow-sm">
+                <Image src="/icon.svg" alt="VoiceScribe Logo" fill className="object-cover" />
               </div>
               <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-500 dark:from-white dark:to-gray-400">
                 VoiceScribe

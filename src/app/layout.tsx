@@ -22,6 +22,11 @@ import Script from "next/script";
 export const metadata: Metadata = {
   title: "VoiceScribe - Intelligent Audio Transcription",
   description: "Highly accessible, and affordable audio-to-English transcription.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
