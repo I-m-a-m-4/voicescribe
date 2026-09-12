@@ -37,7 +37,6 @@ export default function Home() {
   const handleTranscribe = async () => {
     if (!file) return;
 
-    // Limit check: if user has exhausted free limit and is not admin/pro
     if (!canTranscribe) {
       setIsPricingModalOpen(true);
       return;
@@ -71,8 +70,6 @@ export default function Home() {
       }
 
       setTranscription(data.text);
-
-      // Record successful usage (handles popup after 1st generation for guest)
       await recordTranscriptionSuccess();
     } catch (err: any) {
       console.error(err);
@@ -91,7 +88,6 @@ export default function Home() {
     let animationFrameId: number;
     let time = 0;
 
-    // Wave state
     let waveData = Array(8)
       .fill(0)
       .map(() => ({
@@ -116,7 +112,7 @@ export default function Home() {
     };
 
     const draw = () => {
-      ctx.fillStyle = theme === "light" ? "#ffffff" : "#09090b";
+      ctx.fillStyle = theme === "light" ? "#f8fafc" : "#09090b";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       for (let i = 0; i < 8; i++) {
@@ -142,13 +138,14 @@ export default function Home() {
         }
 
         const intensity = Math.min(1, freq * 0.3);
-        const r = 249 + intensity * 6;
-        const g = 115 + intensity * 50;
-        const b = 22;
+        const r = theme === "light" ? 234 : 249 + intensity * 6;
+        const g = theme === "light" ? 88 : 115 + intensity * 50;
+        const b = theme === "light" ? 12 : 22;
+        const alpha = theme === "light" ? 0.35 : 0.6;
 
         ctx.lineWidth = 1 + i * 0.3;
-        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.6)`;
-        ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.5)`;
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        ctx.shadowColor = `rgba(${r}, ${g}, ${b}, ${alpha * 0.8})`;
         ctx.shadowBlur = 5;
         ctx.stroke();
         ctx.shadowBlur = 0;
@@ -181,34 +178,34 @@ export default function Home() {
 
       <div className="fixed inset-0 overflow-y-auto flex items-center justify-center p-4 z-10 pt-20">
         <div className="w-full relative max-w-4xl mx-auto my-auto">
-          <div className="relative card-border rounded-2xl flex flex-col p-6 overflow-hidden bg-white/50 dark:bg-transparent">
+          <div className="relative card-border rounded-3xl flex flex-col p-6 sm:p-8 overflow-hidden bg-white/95 dark:bg-[#121214]/80 border border-gray-200 dark:border-white/10 shadow-2xl">
             <div className="flex flex-col items-center justify-center text-center mb-6 z-20 relative">
-              <span className="inline-block px-3 py-1 glass text-orange-600 dark:text-orange-300 rounded-full text-xs font-medium mb-3 border border-orange-400/30 bg-white/50 dark:bg-transparent">
+              <span className="inline-block px-3 py-1 text-orange-700 dark:text-orange-300 rounded-full text-xs font-bold mb-3 border border-orange-500/30 bg-orange-500/10">
                 VoiceScribe Transcriber
               </span>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-950 dark:text-white mb-2.5 tracking-tight">
                 Audio to Text in Seconds
               </h1>
-              <p className="text-gray-600 dark:text-white/70 max-w-lg text-sm">
+              <p className="text-gray-800 dark:text-gray-300 max-w-lg text-sm sm:text-base font-medium leading-relaxed">
                 Powered by Groq&apos;s insanely fast Whisper API. Drag and drop your audio or video file below to get a highly accurate English transcript instantly.
               </p>
 
               {/* Usage Quota Indicator */}
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-4 flex items-center gap-2">
                 {isInfinite ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-800 dark:text-amber-400 border border-amber-500/30">
                     <Crown className="w-3.5 h-3.5" />
                     Admin: Unlimited Transcriptions
                   </span>
                 ) : isPro ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border border-emerald-500/30">
                     <Sparkles className="w-3.5 h-3.5" />
                     Pro Plan: Unlimited Transcriptions
                   </span>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
-                      <Zap className="w-3 h-3 fill-current" />
+                    <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold bg-orange-500/15 text-orange-900 dark:text-orange-300 border border-orange-500/30">
+                      <Zap className="w-3 h-3 fill-current text-orange-600 dark:text-orange-400" />
                       {remainingFreeUses > 0
                         ? `${remainingFreeUses} of 2 free transcriptions left`
                         : "Free limit reached (2/2 used)"}
@@ -216,7 +213,7 @@ export default function Home() {
                     {remainingFreeUses === 0 && (
                       <button
                         onClick={() => setIsPricingModalOpen(true)}
-                        className="text-xs font-semibold text-orange-500 hover:text-orange-400 underline transition-colors"
+                        className="text-xs font-bold text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 underline transition-colors cursor-pointer"
                       >
                         Upgrade for ₦1,000
                       </button>
@@ -226,7 +223,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-white/30 to-transparent mb-6 z-20 relative"></div>
+            <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-white/20 to-transparent mb-6 z-20 relative"></div>
 
             <div className="z-20 relative flex flex-col items-center w-full min-h-[300px]">
               <FileUploadZone
@@ -238,7 +235,7 @@ export default function Home() {
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 w-full text-center max-w-2xl"
+                  className="mt-6 p-4 rounded-xl bg-red-500/15 border border-red-500/30 text-red-700 dark:text-red-400 w-full text-center max-w-2xl font-medium text-sm"
                 >
                   {error}
                 </motion.div>
@@ -253,14 +250,14 @@ export default function Home() {
                   {canTranscribe ? (
                     <button
                       onClick={handleTranscribe}
-                      className="px-6 py-3 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-medium text-sm transition-all shadow-[0_0_20px_rgba(249,115,22,0.4)]"
+                      className="px-8 py-3.5 rounded-xl bg-orange-600 hover:bg-orange-500 active:bg-orange-700 text-white font-semibold text-sm transition-all shadow-[0_0_25px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_rgba(249,115,22,0.6)] cursor-pointer"
                     >
                       Generate Transcript
                     </button>
                   ) : (
                     <button
                       onClick={() => setIsPricingModalOpen(true)}
-                      className="flex items-center gap-2 px-6 py-3 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-medium text-sm transition-all shadow-[0_0_20px_rgba(249,115,22,0.4)]"
+                      className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-orange-600 hover:bg-orange-500 active:bg-orange-700 text-white font-semibold text-sm transition-all shadow-[0_0_25px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_rgba(249,115,22,0.6)] cursor-pointer"
                     >
                       <Lock className="w-4 h-4" />
                       Free Limit Reached — Upgrade to Transcribe (₦1,000)
@@ -301,7 +298,7 @@ export default function Home() {
               href="https://bimex-group.vercel.app"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-orange-500/60 hover:text-orange-400 transition-colors text-xs tracking-wide"
+              className="text-orange-700 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 transition-colors text-xs font-semibold tracking-wide cursor-pointer"
             >
               built by bimex-group.vercel.app
             </a>
