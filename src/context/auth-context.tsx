@@ -49,6 +49,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   recordTranscriptionSuccess: (transcriptionData?: { fileName: string; fileSize: string; text: string }) => Promise<void>;
   refreshUserData: () => Promise<void>;
+  lastAuthProvider: string | null;
   transcriptionHistory: TranscriptionItem[];
   deleteTranscriptionItem: (id: string) => void;
 }
@@ -62,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [usageCount, setUsageCount] = useState(0);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
+  const [lastAuthProvider, setLastAuthProvider] = useState<string | null>(null);
   const [transcriptionHistory, setTranscriptionHistory] = useState<TranscriptionItem[]>([]);
 
   // Check if current user is the VIP admin
@@ -137,6 +139,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Load last auth provider
+    const savedProvider = localStorage.getItem("voicescribe_last_auth_provider");
+    if (savedProvider) setLastAuthProvider(savedProvider);
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
@@ -212,8 +218,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUsageCount(newGuestUsage);
       localStorage.setItem("voicescribe_guest_usage", newGuestUsage.toString());
       
-      // Popup after 1st generation
-      if (newGuestUsage >= 1) {
+      // Popup after 2nd generation (user requirement: "should be the second time")
+      if (newGuestUsage >= 2) {
         setTimeout(() => {
           setIsAuthModalOpen(true);
         }, 1200);
@@ -235,6 +241,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
     if (result.user) {
+      localStorage.setItem("voicescribe_last_auth_provider", "google");
+      setLastAuthProvider("google");
       await fetchUserData(result.user);
       loadHistory(result.user.uid);
       setIsAuthModalOpen(false);
@@ -244,6 +252,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithApple = async () => {
     const result = await signInWithPopup(auth, appleProvider);
     if (result.user) {
+      localStorage.setItem("voicescribe_last_auth_provider", "apple");
+      setLastAuthProvider("apple");
       await fetchUserData(result.user);
       loadHistory(result.user.uid);
       setIsAuthModalOpen(false);
@@ -253,6 +263,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithEmail = async (email: string, pass: string) => {
     const res = await signInWithEmailAndPassword(auth, email, pass);
     if (res.user) {
+      localStorage.setItem("voicescribe_last_auth_provider", "email");
+      setLastAuthProvider("email");
       await fetchUserData(res.user);
       loadHistory(res.user.uid);
       setIsAuthModalOpen(false);
@@ -262,11 +274,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUpWithEmail = async (email: string, pass: string) => {
     const res = await createUserWithEmailAndPassword(auth, email, pass);
     if (res.user) {
+      localStorage.setItem("voicescribe_last_auth_provider", "email");
+      setLastAuthProvider("email");
       await fetchUserData(res.user);
       loadHistory(res.user.uid);
       setIsAuthModalOpen(false);
     }
   };
+
 
   const logout = async () => {
     await signOut(auth);
@@ -298,6 +313,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         recordTranscriptionSuccess,
         refreshUserData,
+        lastAuthProvider,
         transcriptionHistory,
         deleteTranscriptionItem,
       }}
