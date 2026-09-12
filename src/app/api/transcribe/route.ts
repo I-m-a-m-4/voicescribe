@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 
 const ADMIN_EMAIL = "belloimam431@gmail.com";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -11,7 +21,7 @@ export async function POST(req: NextRequest) {
     if (!file) {
       return NextResponse.json(
         { error: "No audio file provided." },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -20,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         { error: "File exceeds the 25MB size limit." },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -34,9 +44,10 @@ export async function POST(req: NextRequest) {
     if (!apiKey) {
       console.warn("No GROQ_API_KEY provided in environment. Using mock transcription.");
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      return NextResponse.json({
-        text: "This is a mock transcription because GROQ_API_KEY is not configured. Please add your Groq API key to your environment variables."
-      });
+      return NextResponse.json(
+        { text: "This is a mock transcription because GROQ_API_KEY is not configured. Please add your Groq API key to your environment variables." },
+        { headers: corsHeaders }
+      );
     }
 
     // Convert file to buffer/blob with filename for Groq API
@@ -61,17 +72,17 @@ export async function POST(req: NextRequest) {
       console.error("Groq Whisper API Error:", response.status, errorText);
       return NextResponse.json(
         { error: `Transcription service error (${response.status}): ${errorText}` },
-        { status: response.status }
+        { status: response.status, headers: corsHeaders }
       );
     }
 
     const data = await response.json();
-    return NextResponse.json({ text: data.text });
+    return NextResponse.json({ text: data.text }, { headers: corsHeaders });
   } catch (error: any) {
     console.error("Error transcribing file:", error);
     return NextResponse.json(
       { error: error.message || "An unexpected error occurred during processing." },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

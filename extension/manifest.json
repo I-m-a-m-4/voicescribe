@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "VoiceScribe",
-  "version": "1.0",
-  "description": "Intelligent Audio to English Transcription powered by Groq Whisper",
+  "name": "VoiceScribe - AI Audio & WhatsApp Transcriber",
+  "version": "1.1",
+  "description": "Blazingly fast AI transcription for WhatsApp voice notes and web audio powered by Groq Whisper.",
   "icons": {
     "16": "icon-16.png",
     "48": "icon-48.png",
@@ -13,13 +13,31 @@
     "default_title": "VoiceScribe - Transcribe Audio",
     "default_icon": "icon.png"
   },
+  "background": {
+    "service_worker": "background.js"
+  },
   "permissions": [
+    "contextMenus",
     "activeTab",
-    "tabs"
+    "tabs",
+    "storage",
+    "scripting"
   ],
   "host_permissions": [
     "https://usevoicescribe.vercel.app/*",
+    "https://web.whatsapp.com/*",
     "http://localhost:3000/*",
     "http://localhost:3001/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://web.whatsapp.com/*",
+        "<all_urls>"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_end"
+    }
   ]
 }

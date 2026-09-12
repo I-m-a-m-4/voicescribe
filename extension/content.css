@@ -1,0 +1,171 @@
+/* VoiceScribe WhatsApp Web & Universal Floating HUD */
+
+#voicescribe-hud-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999999999;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  pointer-events: none;
+}
+
+.voicescribe-hud {
+  pointer-events: auto;
+  background: rgba(18, 18, 20, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6), 0 0 20px rgba(249, 115, 22, 0.2);
+  border-radius: 16px;
+  padding: 16px;
+  width: 360px;
+  color: #ffffff;
+  animation: voicescribe-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s ease;
+}
+
+@keyframes voicescribe-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.voicescribe-hud-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.voicescribe-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  color: #f97316;
+}
+
+.voicescribe-close-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.voicescribe-close-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.voicescribe-hud-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #e4e4e7;
+  max-height: 220px;
+  overflow-y: auto;
+  word-break: break-word;
+  padding-right: 4px;
+}
+
+.voicescribe-hud-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.voicescribe-hud-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.voicescribe-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fb923c;
+  font-weight: 500;
+}
+
+.voicescribe-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(249, 115, 22, 0.3);
+  border-top-color: #f97316;
+  border-radius: 50%;
+  animation: voicescribe-spin 0.8s linear infinite;
+}
+
+@keyframes voicescribe-spin {
+  to { transform: rotate(360deg); }
+}
+
+.voicescribe-hud-footer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.voicescribe-btn {
+  background: #ea580c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s;
+}
+
+.voicescribe-btn:hover {
+  background: #f97316;
+}
+
+.voicescribe-status-tag {
+  font-size: 11px;
+  color: #22c55e;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* WhatsApp Inline Transcribe Button */
+.voicescribe-wa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(234, 88, 12, 0.2);
+  border: 1px solid rgba(234, 88, 12, 0.4);
+  color: #fdba74;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  margin: 4px 6px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.voicescribe-wa-btn:hover {
+  background: #ea580c;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(234, 88, 12, 0.5);
+}
