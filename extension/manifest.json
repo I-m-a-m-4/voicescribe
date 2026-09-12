@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "VoiceScribe",
+  "version": "1.0",
+  "description": "Intelligent Audio to English Transcription powered by Groq",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "VoiceScribe"
+  },
+  "permissions": []
+}

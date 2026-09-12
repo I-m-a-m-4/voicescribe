@@ -1,19 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
-import { ArrowRight, Mic, Zap, DollarSign, ShieldCheck, Sparkles, Mic2 } from "lucide-react";
-
+import { useTheme } from "next-themes";
 import FileUploadZone from "@/components/file-upload-zone";
 import LoadingState from "@/components/loading-state";
 import TranscriptionResult from "@/components/transcription-result";
+import { useAuth } from "@/context/auth-context";
+import { Sparkles, Crown, Zap, Lock } from "lucide-react";
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcription, setTranscription] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { theme } = useTheme();
+
+  const {
+    user,
+    isPro,
+    isInfinite,
+    usageCount,
+    remainingFreeUses,
+    canTranscribe,
+    setIsPricingModalOpen,
+    recordTranscriptionSuccess,
+  } = useAuth();
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -24,12 +37,24 @@ export default function Home() {
   const handleTranscribe = async () => {
     if (!file) return;
 
+    // Limit check: if user has exhausted free limit and is not admin/pro
+    if (!canTranscribe) {
+      setIsPricingModalOpen(true);
+      return;
+    }
+
     setIsTranscribing(true);
     setError(null);
     setTranscription(null);
 
     const formData = new FormData();
     formData.append("file", file);
+    if (user?.email) {
+      formData.append("email", user.email);
+    }
+    if (user?.uid) {
+      formData.append("uid", user.uid);
+    }
 
     try {
       const response = await fetch("/api/transcribe", {
@@ -38,12 +63,17 @@ export default function Home() {
       });
 
       const data = await response.json();
-
       if (!response.ok) {
+        if (response.status === 403 || data.limitReached) {
+          setIsPricingModalOpen(true);
+        }
         throw new Error(data.error || "Failed to transcribe audio.");
       }
 
       setTranscription(data.text);
+
+      // Record successful usage (handles popup after 1st generation for guest)
+      await recordTranscriptionSuccess();
     } catch (err: any) {
       console.error(err);
       setError(err.message || "An unexpected error occurred during transcription.");
@@ -52,152 +82,229 @@ export default function Home() {
     }
   };
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    let time = 0;
+
+    // Wave state
+    let waveData = Array(8)
+      .fill(0)
+      .map(() => ({
+        value: Math.random() * 0.5 + 0.1,
+        targetValue: Math.random() * 0.5 + 0.1,
+        speed: Math.random() * 0.02 + 0.01,
+      }));
+
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+
+    const updateWaveData = () => {
+      waveData.forEach((data) => {
+        if (Math.random() < 0.01) {
+          data.targetValue = Math.random() * 0.7 + 0.1;
+        }
+        const diff = data.targetValue - data.value;
+        data.value += diff * data.speed;
+      });
+    };
+
+    const draw = () => {
+      ctx.fillStyle = theme === "light" ? "#ffffff" : "#09090b";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < 8; i++) {
+        const freq = waveData[i].value * 7.0;
+        ctx.beginPath();
+
+        for (let x = 0; x < canvas.width; x += 1) {
+          const normalizedX = (x / canvas.width) * 2 - 1;
+          let px = normalizedX + i * 0.04 + freq * 0.03;
+          let py =
+            Math.sin(px * 10 + time) *
+            Math.cos(px * 2) *
+            freq *
+            0.1 *
+            ((i + 1) / 8);
+          const canvasY = ((py + 1) * canvas.height) / 2;
+
+          if (x === 0) {
+            ctx.moveTo(x, canvasY);
+          } else {
+            ctx.lineTo(x, canvasY);
+          }
+        }
+
+        const intensity = Math.min(1, freq * 0.3);
+        const r = 249 + intensity * 6;
+        const g = 115 + intensity * 50;
+        const b = 22;
+
+        ctx.lineWidth = 1 + i * 0.3;
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.6)`;
+        ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.5)`;
+        ctx.shadowBlur = 5;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+    };
+
+    const animate = () => {
+      time += 0.02;
+      updateWaveData();
+      draw();
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+    animate();
+
+    return () => {
+      window.removeEventListener("resize", resizeCanvas);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [theme]);
+
   return (
-    <div className="relative isolate min-h-[calc(100vh-4rem)] flex flex-col justify-center overflow-hidden">
-      {/* Background glowing effects */}
-      <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80" aria-hidden="true">
-        <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-brand-500 to-[#9089fc] opacity-20 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]" style={{ clipPath: 'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)' }}></div>
-      </div>
+    <div className="bg-transparent m-0 p-0 overflow-hidden min-h-screen w-full relative">
+      <canvas
+        ref={canvasRef}
+        className="fixed inset-0 w-full h-full pointer-events-none -z-10"
+      />
 
-      <main className="mx-auto max-w-7xl px-6 lg:px-8 flex-grow flex flex-col justify-center pb-24 pt-10 sm:pb-32 lg:flex-row lg:items-start lg:gap-x-10 lg:px-8 lg:pt-24">
-        <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-xl lg:flex-shrink-0 pt-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mt-12 sm:mt-20 lg:mt-0"
-          >
-            <a href="#" className="inline-flex space-x-6">
-              <span className="rounded-full bg-brand-500/10 px-3 py-1 text-sm font-semibold leading-6 text-brand-400 ring-1 ring-inset ring-brand-500/20">
-                Latest Update
+      <div className="fixed inset-0 overflow-y-auto flex items-center justify-center p-4 z-10 pt-20">
+        <div className="w-full relative max-w-4xl mx-auto my-auto">
+          <div className="relative card-border rounded-2xl flex flex-col p-6 overflow-hidden bg-white/50 dark:bg-transparent">
+            <div className="flex flex-col items-center justify-center text-center mb-6 z-20 relative">
+              <span className="inline-block px-3 py-1 glass text-orange-600 dark:text-orange-300 rounded-full text-xs font-medium mb-3 border border-orange-400/30 bg-white/50 dark:bg-transparent">
+                VoiceScribe Transcriber
               </span>
-              <span className="inline-flex items-center space-x-2 text-sm font-medium leading-6 text-gray-300">
-                <span>Just shipped Groq Integration</span>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-              </span>
-            </a>
-          </motion.div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
+                Audio to Text in Seconds
+              </h1>
+              <p className="text-gray-600 dark:text-white/70 max-w-lg text-sm">
+                Powered by Groq&apos;s insanely fast Whisper API. Drag and drop your audio or video file below to get a highly accurate English transcript instantly.
+              </p>
 
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="mt-10 text-4xl font-bold tracking-tight text-white sm:text-6xl"
-          >
-            Intelligent Audio to <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-purple-400">English Transcription</span>
-          </motion.h1>
+              {/* Usage Quota Indicator */}
+              <div className="mt-3 flex items-center gap-2">
+                {isInfinite ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                    <Crown className="w-3.5 h-3.5" />
+                    Admin: Unlimited Transcriptions
+                  </span>
+                ) : isPro ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Pro Plan: Unlimited Transcriptions
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
+                      <Zap className="w-3 h-3 fill-current" />
+                      {remainingFreeUses > 0
+                        ? `${remainingFreeUses} of 2 free transcriptions left`
+                        : "Free limit reached (2/2 used)"}
+                    </span>
+                    {remainingFreeUses === 0 && (
+                      <button
+                        onClick={() => setIsPricingModalOpen(true)}
+                        className="text-xs font-semibold text-orange-500 hover:text-orange-400 underline transition-colors"
+                      >
+                        Upgrade for ₦1,000
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
 
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="mt-6 text-lg leading-8 text-gray-300"
-          >
-            VoiceScribe is a highly accessible, premium, and affordable audio-to-text tool. Upload your audio or video and get highly accurate English transcripts in seconds.
-          </motion.p>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="mt-10 flex items-center gap-x-6 hidden lg:flex"
-          >
-            <a href="#features" className="text-sm font-semibold leading-6 text-white hover:text-gray-300 transition-colors">
-              Learn more about our features <span aria-hidden="true">→</span>
-            </a>
-          </motion.div>
-        </div>
+            <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-white/30 to-transparent mb-6 z-20 relative"></div>
 
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.7, delay: 0.4 }}
-          className="mx-auto mt-16 flex w-full max-w-2xl sm:mt-24 lg:ml-10 lg:mr-0 lg:mt-0 lg:max-w-none lg:flex-none xl:ml-32 flex-col items-center"
-        >
-          {/* Main App Workspace injected right into the landing page */}
-          <div className="w-full max-w-3xl flex flex-col items-center">
-            <FileUploadZone onFileSelect={handleFileSelect} isLoading={isTranscribing} />
+            <div className="z-20 relative flex flex-col items-center w-full min-h-[300px]">
+              <FileUploadZone
+                onFileSelect={handleFileSelect}
+                isLoading={isTranscribing}
+              />
 
-            {error && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 w-full text-center"
-              >
-                {error}
-              </motion.div>
-            )}
-
-            {file && !isTranscribing && !transcription && (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-8 flex justify-center w-full"
-              >
-                <button
-                  onClick={handleTranscribe}
-                  className="px-8 py-4 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-medium text-lg transition-all shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:shadow-[0_0_30px_rgba(79,70,229,0.6)] flex items-center gap-2"
-                >
-                  <Sparkles className="w-5 h-5" />
-                  Generate Transcript
-                </button>
-              </motion.div>
-            )}
-
-            <AnimatePresence mode="wait">
-              {isTranscribing && (
+              {error && (
                 <motion.div
-                  key="loading"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="w-full"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 w-full text-center max-w-2xl"
                 >
-                  <LoadingState />
+                  {error}
                 </motion.div>
               )}
 
-              {transcription && !isTranscribing && (
+              {file && !isTranscribing && !transcription && (
                 <motion.div
-                  key="result"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="w-full"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-8 flex justify-center w-full"
                 >
-                  <TranscriptionResult text={transcription} />
+                  {canTranscribe ? (
+                    <button
+                      onClick={handleTranscribe}
+                      className="px-6 py-3 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-medium text-sm transition-all shadow-[0_0_20px_rgba(249,115,22,0.4)]"
+                    >
+                      Generate Transcript
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setIsPricingModalOpen(true)}
+                      className="flex items-center gap-2 px-6 py-3 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-medium text-sm transition-all shadow-[0_0_20px_rgba(249,115,22,0.4)]"
+                    >
+                      <Lock className="w-4 h-4" />
+                      Free Limit Reached — Upgrade to Transcribe (₦1,000)
+                    </button>
+                  )}
                 </motion.div>
               )}
-            </AnimatePresence>
-          </div>
-        </motion.div>
-      </main>
 
-      {/* Features Grid */}
-      <div id="features" className="py-24 sm:py-32 bg-black/20 border-t border-white/5">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl sm:text-center">
-            <h2 className="text-base font-semibold leading-7 text-brand-400">Everything you need</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">No-compromise transcription</p>
+              <AnimatePresence mode="wait">
+                {isTranscribing && (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="w-full mt-6"
+                  >
+                    <LoadingState />
+                  </motion.div>
+                )}
+
+                {transcription && !isTranscribing && (
+                  <motion.div
+                    key="result"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="w-full mt-6"
+                  >
+                    <TranscriptionResult text={transcription} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
-          
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-3">
-              {[
-                { name: 'Lightning Fast', description: 'Powered by Groq hardware and Whisper API to give you transcripts in seconds.', icon: Zap },
-                { name: 'Highly Affordable', description: 'Cost-effective processing means you pay a fraction of the cost of traditional services.', icon: DollarSign },
-                { name: 'Private & Secure', description: 'Your files are processed securely and never stored longer than necessary.', icon: ShieldCheck },
-              ].map((feature) => (
-                <div key={feature.name} className="flex flex-col glass p-8 rounded-2xl">
-                  <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-white">
-                    <feature.icon className="h-6 w-6 flex-none text-brand-400" aria-hidden="true" />
-                    {feature.name}
-                  </dt>
-                  <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-400">
-                    <p className="flex-auto">{feature.description}</p>
-                  </dd>
-                </div>
-              ))}
-            </dl>
+
+          <div className="mt-8 flex justify-center z-20 relative">
+            <a
+              href="https://bimex-group.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-orange-500/60 hover:text-orange-400 transition-colors text-xs tracking-wide"
+            >
+              built by bimex-group.vercel.app
+            </a>
           </div>
         </div>
       </div>

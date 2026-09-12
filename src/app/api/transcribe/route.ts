@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const ADMIN_EMAIL = "belloimam431@gmail.com";
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
+    const email = (formData.get("email") as string | null) || "";
 
     if (!file) {
       return NextResponse.json(
@@ -12,7 +15,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Ensure the file is not too large (e.g., limit to 25MB as per Groq/Whisper limits)
+    // Ensure the file is not too large (limit to 25MB as per Groq/Whisper limits)
     const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
@@ -21,25 +24,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const isAdmin = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    if (isAdmin) {
+      console.log(`[Admin Access] Unlimited transcription granted for: ${email}`);
+    }
+
     const apiKey = process.env.GROQ_API_KEY;
 
     if (!apiKey) {
-      // Mock transcription for testing purposes when no API key is provided.
       console.warn("No GROQ_API_KEY provided. Using mock transcription.");
       
       // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       
       return NextResponse.json({
-        text: "This is a mock transcription because no GROQ_API_KEY was found in the environment variables. To get real transcriptions, please add your Groq API key to the .env file.\n\nVoiceScribe is an intelligent audio-to-text tool built for accessibility and affordability."
+        text: "This is a mock transcription because no GROQ_API_KEY was found in the environment variables. VoiceScribe is ready to transcribe real audio once your key is configured."
       });
     }
 
-    // Call Groq API
-    // Groq's Whisper API endpoint is standard OpenAI compatible:
-    // https://api.groq.com/openai/v1/audio/transcriptions
-    
-    // Create a new FormData instance to send to Groq
+    // Call Groq Whisper API
     const groqFormData = new FormData();
     groqFormData.append("file", file);
     groqFormData.append("model", "whisper-large-v3-turbo");
@@ -48,7 +51,7 @@ export async function POST(req: NextRequest) {
     const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`
+        Authorization: `Bearer ${apiKey}`,
       },
       body: groqFormData,
     });
@@ -65,7 +68,6 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
 
     return NextResponse.json({ text: data.text });
-
   } catch (error) {
     console.error("Error transcribing file:", error);
     return NextResponse.json(
