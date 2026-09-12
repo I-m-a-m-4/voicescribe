@@ -70,7 +70,11 @@ export default function Home() {
       }
 
       setTranscription(data.text);
-      await recordTranscriptionSuccess();
+      await recordTranscriptionSuccess({
+        fileName: file.name,
+        fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+        text: data.text,
+      });
     } catch (err: any) {
       console.error(err);
       setError(err.message || "An unexpected error occurred during transcription.");
@@ -215,7 +219,7 @@ export default function Home() {
                         onClick={() => setIsPricingModalOpen(true)}
                         className="text-xs font-bold text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 underline transition-colors cursor-pointer"
                       >
-                        Upgrade for ₦1,000
+                        Upgrade for ₦2,000/mo
                       </button>
                     )}
                   </div>
@@ -260,7 +264,7 @@ export default function Home() {
                       className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-orange-600 hover:bg-orange-500 active:bg-orange-700 text-white font-semibold text-sm transition-all shadow-[0_0_25px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_rgba(249,115,22,0.6)] cursor-pointer"
                     >
                       <Lock className="w-4 h-4" />
-                      Free Limit Reached — Upgrade to Transcribe (₦1,000)
+                      Free Limit Reached — Upgrade to Transcribe (₦2,000/mo)
                     </button>
                   )}
                 </motion.div>
@@ -293,7 +297,31 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-8 flex justify-center z-20 relative">
+          {/* Chrome Extension Download Card */}
+          <div className="mt-8 p-6 rounded-2xl bg-white/80 dark:bg-[#121214]/80 border border-gray-200 dark:border-white/10 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 z-20 relative">
+            <div className="flex items-center gap-4 text-center sm:text-left">
+              <div className="p-3 rounded-2xl bg-orange-500/15 text-orange-600 dark:text-orange-400">
+                <Zap className="w-6 h-6 fill-current" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-950 dark:text-white">
+                  Get the VoiceScribe Chrome Extension
+                </h3>
+                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium mt-0.5">
+                  Transcribe audio directly from any browser tab without leaving your workflow.
+                </p>
+              </div>
+            </div>
+            <a
+              href="/voicescribe-extension.zip"
+              download="voicescribe-extension.zip"
+              className="px-5 py-2.5 rounded-xl bg-gray-950 dark:bg-white text-white dark:text-gray-950 hover:bg-gray-800 dark:hover:bg-gray-200 text-xs font-bold transition-all shadow-md cursor-pointer flex-shrink-0"
+            >
+              Download Extension (.ZIP) ↓
+            </a>
+          </div>
+
+          <div className="mt-6 flex justify-center z-20 relative">
             <a
               href="https://bimex-group.vercel.app"
               target="_blank"

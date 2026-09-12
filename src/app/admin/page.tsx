@@ -24,7 +24,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 
 const ADMIN_EMAIL = "belloimam431@gmail.com";
-const PRICE_PER_PRO_NGN = 1000;
+const PRICE_PER_PRO_NGN = 2000;
 
 interface UserRecord {
   id: string;
@@ -94,6 +94,9 @@ export default function AdminDashboard() {
     const payingUsers = usersList.filter(
       (u) => u.isPro && u.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()
     );
+    const freeUsers = usersList.filter(
+      (u) => !u.isPro && u.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()
+    );
     const totalRevenueNGN = payingUsers.length * PRICE_PER_PRO_NGN;
     const totalRevenueUSD = (totalRevenueNGN / 1450).toFixed(2); // estimated exchange rate
 
@@ -102,6 +105,11 @@ export default function AdminDashboard() {
       return acc + (u.usageCount || 0);
     }, 0);
 
+    const remainingFreeQuota = freeUsers.reduce(
+      (acc, u) => acc + Math.max(0, 2 - (u.usageCount || 0)),
+      0
+    );
+
     const conversionRate = totalUsers > 1 
       ? ((payingUsers.length / (totalUsers - 1)) * 100).toFixed(1)
       : "0";
@@ -109,6 +117,8 @@ export default function AdminDashboard() {
     return {
       totalUsers,
       payingUsersCount: payingUsers.length,
+      freeUsersCount: freeUsers.length,
+      remainingFreeQuota,
       totalRevenueNGN,
       totalRevenueUSD,
       totalTranscriptions,
@@ -202,7 +212,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Analytics Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-8">
         {/* Total Revenue */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
@@ -210,7 +220,7 @@ export default function AdminDashboard() {
           className="p-6 rounded-2xl bg-white dark:bg-[#121214] border border-orange-500/20 shadow-lg relative overflow-hidden"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+            <span className="text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
               Total Revenue Made
             </span>
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
@@ -225,9 +235,9 @@ export default function AdminDashboard() {
               (~${stats.totalRevenueUSD} USD)
             </span>
           </div>
-          <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold mt-2 flex items-center gap-1">
+          <p className="text-xs text-emerald-800 dark:text-emerald-400 font-semibold mt-2 flex items-center gap-1">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            {stats.payingUsersCount} successful Paystack payments
+            {stats.payingUsersCount} subscribers @ ₦2,000/mo
           </p>
         </motion.div>
 
@@ -239,7 +249,7 @@ export default function AdminDashboard() {
           className="p-6 rounded-2xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-lg"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+            <span className="text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
               Total Users / Visitors
             </span>
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
@@ -251,15 +261,15 @@ export default function AdminDashboard() {
               {stats.totalUsers}
             </span>
             <span className="text-xs text-gray-600 dark:text-gray-400 font-medium ml-2">
-              accounts created
+              accounts
             </span>
           </div>
           <p className="text-xs text-gray-700 dark:text-gray-400 font-medium mt-2">
-            Google, Apple &amp; Email members
+            Google &amp; Email visitors
           </p>
         </motion.div>
 
-        {/* Total Transcriptions */}
+        {/* Free Quotas Remaining */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -267,7 +277,35 @@ export default function AdminDashboard() {
           className="p-6 rounded-2xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-lg"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+            <span className="text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
+              Free Quota Left
+            </span>
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <Zap className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <span className="text-3xl font-black text-gray-950 dark:text-white">
+              {stats.remainingFreeQuota}
+            </span>
+            <span className="text-xs text-gray-600 dark:text-gray-400 font-medium ml-2">
+              slots left
+            </span>
+          </div>
+          <p className="text-xs text-amber-800 dark:text-amber-400 font-semibold mt-2">
+            {stats.freeUsersCount} free users (2 allowed each)
+          </p>
+        </motion.div>
+
+        {/* Total Transcriptions */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="p-6 rounded-2xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-lg"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
               Transcriptions Run
             </span>
             <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center">
@@ -279,7 +317,7 @@ export default function AdminDashboard() {
               {stats.totalTranscriptions}
             </span>
             <span className="text-xs text-gray-600 dark:text-gray-400 font-medium ml-2">
-              files processed
+              processed
             </span>
           </div>
           <p className="text-xs text-gray-700 dark:text-gray-400 font-medium mt-2 flex items-center gap-1">
@@ -291,12 +329,12 @@ export default function AdminDashboard() {
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
+          transition={{ delay: 0.2 }}
           className="p-6 rounded-2xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-lg"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-              Pro Conversion Rate
+            <span className="text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
+              Pro Conversion
             </span>
             <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
               <TrendingUp className="w-5 h-5" />
@@ -307,8 +345,8 @@ export default function AdminDashboard() {
               {stats.conversionRate}%
             </span>
           </div>
-          <p className="text-xs text-purple-700 dark:text-purple-400 font-medium mt-2">
-            Free users upgrading to Unlimited
+          <p className="text-xs text-purple-800 dark:text-purple-400 font-semibold mt-2">
+            Paying ₦2,000/month
           </p>
         </motion.div>
       </div>
@@ -381,6 +419,7 @@ export default function AdminDashboard() {
                 <th className="py-3 px-4">User</th>
                 <th className="py-3 px-4">Plan Status</th>
                 <th className="py-3 px-4">Transcriptions</th>
+                <th className="py-3 px-4">Quota Left</th>
                 <th className="py-3 px-4">Revenue Contributed</th>
                 <th className="py-3 px-4">Joined Date</th>
               </tr>
@@ -388,13 +427,14 @@ export default function AdminDashboard() {
             <tbody className="divide-y divide-gray-100 dark:divide-white/5 text-sm">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-gray-500 text-xs">
+                  <td colSpan={6} className="py-8 text-center text-gray-500 text-xs">
                     {loading ? "Loading analytics..." : "No matching users found."}
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((u) => {
                   const isOwner = u.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+                  const remainingQuota = Math.max(0, 2 - (u.usageCount || 0));
 
                   return (
                     <tr key={u.id} className="hover:bg-gray-50/80 dark:hover:bg-white/5 transition-colors">
@@ -434,8 +474,28 @@ export default function AdminDashboard() {
                         {isOwner ? "Unlimited" : `${u.usageCount || 0} files`}
                       </td>
 
+                      <td className="py-3.5 px-4">
+                        {isOwner ? (
+                          <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                            Infinite (Owner)
+                          </span>
+                        ) : u.isPro ? (
+                          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                            Unlimited (Pro)
+                          </span>
+                        ) : remainingQuota > 0 ? (
+                          <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                            {remainingQuota} / 2 left
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+                            0 left (Limit reached)
+                          </span>
+                        )}
+                      </td>
+
                       <td className="py-3.5 px-4 font-bold text-gray-950 dark:text-white">
-                        {isOwner ? "—" : u.isPro ? "₦1,000 NGN" : "₦0"}
+                        {isOwner ? "—" : u.isPro ? "₦2,000 NGN" : "₦0"}
                       </td>
 
                       <td className="py-3.5 px-4 text-xs text-gray-600 dark:text-gray-400 font-medium">

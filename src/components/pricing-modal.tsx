@@ -56,7 +56,7 @@ export default function PricingModal() {
     const handler = window.PaystackPop.setup({
       key: publicKey,
       email: user.email || "customer@voicescribe.ai",
-      amount: 100000, // ₦1,000 NGN in Kobo
+      amount: 200000, // ₦2,000 NGN in Kobo
       currency: "NGN",
       ref: `vs_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
       metadata: {
@@ -69,7 +69,7 @@ export default function PricingModal() {
           {
             display_name: "Plan",
             variable_name: "plan",
-            value: "unlimited_pro",
+            value: "monthly_pro_2000",
           },
         ],
       },
@@ -175,21 +175,21 @@ export default function PricingModal() {
                 <div className="flex items-baseline justify-between mb-4">
                   <div>
                     <span className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white">
-                      ₦1,000
+                      ₦2,000
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-400 ml-1.5 font-medium">
-                      NGN / One-Time
+                      NGN / Month
                     </span>
                   </div>
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange-600 text-white shadow-sm">
-                    Affordable Pro
+                    Monthly Pro
                   </span>
                 </div>
 
                 <ul className="space-y-2.5 text-xs sm:text-sm text-gray-600 dark:text-gray-300">
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                    <span><strong>Infinite</strong> audio & video transcriptions</span>
+                    <span><strong>Unlimited</strong> audio &amp; video transcriptions</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-orange-500 flex-shrink-0" />
@@ -201,7 +201,7 @@ export default function PricingModal() {
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                    <span>Zero subscription — pay once, use forever</span>
+                    <span>Cancel anytime — no long-term contracts</span>
                   </li>
                 </ul>
               </div>
@@ -216,7 +216,7 @@ export default function PricingModal() {
               <button
                 onClick={handlePaystackCheckout}
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-orange-600 hover:bg-orange-500 active:bg-orange-700 text-white font-semibold text-sm transition-all shadow-lg shadow-orange-600/30 hover:shadow-orange-600/50 disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-orange-600 hover:bg-orange-500 active:bg-orange-700 text-white font-semibold text-sm transition-all shadow-lg shadow-orange-600/30 hover:shadow-orange-600/50 disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -226,7 +226,7 @@ export default function PricingModal() {
                 ) : (
                   <>
                     <Zap className="w-4 h-4 fill-current" />
-                    {user ? "Pay ₦1,000 with Paystack" : "Sign In & Upgrade"}
+                    {user ? "Pay ₦2,000 / month with Paystack" : "Sign In & Upgrade"}
                   </>
                 )}
               </button>

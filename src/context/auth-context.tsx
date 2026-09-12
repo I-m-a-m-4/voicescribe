@@ -15,6 +15,15 @@ import { auth, db, googleProvider, appleProvider } from "@/lib/firebase";
 const ADMIN_EMAIL = "belloimam431@gmail.com";
 const FREE_TIER_LIMIT = 2;
 
+export interface TranscriptionItem {
+  id: string;
+  fileName: string;
+  fileSize: string;
+  text: string;
+  createdAt: string;
+  wordCount: number;
+}
+
 interface UserProfile {
   usageCount: number;
   isPro: boolean;
@@ -38,8 +47,10 @@ interface AuthContextType {
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
-  recordTranscriptionSuccess: () => Promise<void>;
+  recordTranscriptionSuccess: (transcriptionData?: { fileName: string; fileSize: string; text: string }) => Promise<void>;
   refreshUserData: () => Promise<void>;
+  transcriptionHistory: TranscriptionItem[];
+  deleteTranscriptionItem: (id: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -51,17 +62,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [usageCount, setUsageCount] = useState(0);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
+  const [transcriptionHistory, setTranscriptionHistory] = useState<TranscriptionItem[]>([]);
 
   // Check if current user is the VIP admin
-  const isInfinite = (user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+  const isInfinite = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-  // Fetch or initialize Firestore user document
+  // Load history from localStorage
+  const loadHistory = useCallback((userId?: string) => {
+    const key = userId ? `voicescribe_history_${userId}` : "voicescribe_history_guest";
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        setTranscriptionHistory(JSON.parse(saved));
+      } else {
+        setTranscriptionHistory([]);
+      }
+    } catch (e) {
+      console.warn("Failed to load history from storage", e);
+    }
+  }, []);
+
+  // Fetch or initialize Firestore user document with graceful offline/local fallback
   const fetchUserData = useCallback(async (firebaseUser: User) => {
+    const isBello = firebaseUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+    // Guarantee admin infinite status immediately
+    if (isBello) {
+      setIsPro(true);
+    }
+
     try {
       const userRef = doc(db, "users", firebaseUser.uid);
       const userSnap = await getDoc(userRef);
-
-      const isBello = firebaseUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
       if (!userSnap.exists()) {
         const initialData = {
@@ -79,11 +111,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUsageCount(data.usageCount || 0);
         setIsPro(Boolean(data.isPro || isBello));
       }
-    } catch (err) {
-      console.error("Error fetching user data from Firestore:", err);
-      // Fallback: if user is admin, guarantee infinite
-      if (firebaseUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-        setIsPro(true);
+    } catch (err: any) {
+      // Graceful fallback for permission-denied or network errors
+      console.warn("Firestore notice: using local state fallback for user profile.");
+      const localProfileKey = `voicescribe_profile_${firebaseUser.uid}`;
+      const saved = localStorage.getItem(localProfileKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setUsageCount(parsed.usageCount || 0);
+          setIsPro(Boolean(parsed.isPro || isBello));
+        } catch {
+          setIsPro(isBello);
+        }
+      } else {
+        setIsPro(isBello);
       }
     }
   }, []);
@@ -98,9 +140,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
+        loadHistory(firebaseUser.uid);
         await fetchUserData(firebaseUser);
       } else {
-        // Load guest usage from localStorage
+        loadHistory();
         const guestUsage = parseInt(localStorage.getItem("voicescribe_guest_usage") || "0", 10);
         setUsageCount(guestUsage);
         setIsPro(false);
@@ -109,7 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [fetchUserData]);
+  }, [fetchUserData, loadHistory]);
 
   // Calculations for limits
   const remainingFreeUses = (isInfinite || isPro)
@@ -118,15 +161,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const canTranscribe = isInfinite || isPro || remainingFreeUses > 0;
 
-  // Record usage when a transcription succeeds
-  const recordTranscriptionSuccess = async () => {
+  // Record usage & save to history when a transcription succeeds
+  const recordTranscriptionSuccess = async (transcriptionData?: { fileName: string; fileSize: string; text: string }) => {
+    // 1. Save to History for User Dashboard
+    if (transcriptionData && transcriptionData.text) {
+      const newItem: TranscriptionItem = {
+        id: `tr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        fileName: transcriptionData.fileName || "audio-recording.mp3",
+        fileSize: transcriptionData.fileSize || "1.0 MB",
+        text: transcriptionData.text,
+        createdAt: new Date().toISOString(),
+        wordCount: transcriptionData.text.trim().split(/\s+/).length,
+      };
+
+      const key = user ? `voicescribe_history_${user.uid}` : "voicescribe_history_guest";
+      const updated = [newItem, ...transcriptionHistory];
+      setTranscriptionHistory(updated);
+      try {
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Failed to persist transcription history", e);
+      }
+    }
+
     if (isInfinite) {
-      return; // Never increment or limit admin
+      return; // Never block or increment admin limits
     }
 
     if (user) {
       const newCount = usageCount + 1;
       setUsageCount(newCount);
+
+      // Save to local cache
+      const localProfileKey = `voicescribe_profile_${user.uid}`;
+      localStorage.setItem(localProfileKey, JSON.stringify({ usageCount: newCount, isPro }));
+
+      // Try updating Firestore
       try {
         const userRef = doc(db, "users", user.uid);
         await updateDoc(userRef, {
@@ -134,7 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           lastUsedAt: new Date().toISOString(),
         });
       } catch (err) {
-        console.error("Error incrementing usage count:", err);
+        // Fallback already saved in localStorage
       }
     } else {
       // Guest usage
@@ -142,7 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUsageCount(newGuestUsage);
       localStorage.setItem("voicescribe_guest_usage", newGuestUsage.toString());
       
-      // User request: "AFTER LIEK 1 EGENRATIONG SHOW THE POPUP FPRM THE SSIGNGIGN UP"
+      // Popup after 1st generation
       if (newGuestUsage >= 1) {
         setTimeout(() => {
           setIsAuthModalOpen(true);
@@ -151,10 +221,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const deleteTranscriptionItem = (id: string) => {
+    const updated = transcriptionHistory.filter((item) => item.id !== id);
+    setTranscriptionHistory(updated);
+    const key = user ? `voicescribe_history_${user.uid}` : "voicescribe_history_guest";
+    try {
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Failed to delete history item", e);
+    }
+  };
+
   const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
     if (result.user) {
       await fetchUserData(result.user);
+      loadHistory(result.user.uid);
       setIsAuthModalOpen(false);
     }
   };
@@ -163,6 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const result = await signInWithPopup(auth, appleProvider);
     if (result.user) {
       await fetchUserData(result.user);
+      loadHistory(result.user.uid);
       setIsAuthModalOpen(false);
     }
   };
@@ -171,6 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await signInWithEmailAndPassword(auth, email, pass);
     if (res.user) {
       await fetchUserData(res.user);
+      loadHistory(res.user.uid);
       setIsAuthModalOpen(false);
     }
   };
@@ -179,6 +263,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await createUserWithEmailAndPassword(auth, email, pass);
     if (res.user) {
       await fetchUserData(res.user);
+      loadHistory(res.user.uid);
       setIsAuthModalOpen(false);
     }
   };
@@ -187,6 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signOut(auth);
     setUser(null);
     setIsPro(false);
+    loadHistory();
     const guestUsage = parseInt(localStorage.getItem("voicescribe_guest_usage") || "0", 10);
     setUsageCount(guestUsage);
   };
@@ -212,6 +298,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         recordTranscriptionSuccess,
         refreshUserData,
+        transcriptionHistory,
+        deleteTranscriptionItem,
       }}
     >
       {children}
