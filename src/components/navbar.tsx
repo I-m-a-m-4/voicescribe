@@ -51,7 +51,7 @@ export default function Navbar() {
 
           {/* Nav Actions */}
           <div className="flex items-center gap-2.5 sm:gap-4">
-            {/* Chrome Extension Download Button */}
+            {/* Chrome Extension Download Button (commented out for now)
             <a
               href="/voicescribe-extension.zip"
               download="voicescribe-extension.zip"
@@ -61,6 +61,7 @@ export default function Navbar() {
               <DownloadCloud className="w-3.5 h-3.5 text-orange-500" />
               <span>Chrome Extension</span>
             </a>
+            */}
 
             {/* Dashboard Link for logged-in users */}
             {user && (
@@ -193,6 +194,7 @@ export default function Navbar() {
                           </button>
                         )}
 
+                        {/* Chrome Extension Mobile Link (commented out for now)
                         <a
                           href="/voicescribe-extension.zip"
                           download="voicescribe-extension.zip"
@@ -202,6 +204,7 @@ export default function Navbar() {
                           <DownloadCloud className="w-3.5 h-3.5 text-orange-500" />
                           Download Chrome Extension
                         </a>
+                        */}
 
                         <button
                           onClick={() => {

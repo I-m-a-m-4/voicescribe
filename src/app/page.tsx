@@ -297,7 +297,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Chrome Extension Download Card */}
+          {/* Chrome Extension Banner (commented out for now)
           <div className="mt-8 p-6 rounded-2xl bg-white/80 dark:bg-[#121214]/80 border border-gray-200 dark:border-white/10 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 z-20 relative">
             <div className="flex items-center gap-4 text-center sm:text-left">
               <div className="p-3 rounded-2xl bg-orange-500/15 text-orange-600 dark:text-orange-400">
@@ -320,6 +320,7 @@ export default function Home() {
               Download Extension (.ZIP) ↓
             </a>
           </div>
+          */}
 
           <div className="mt-6 flex justify-center z-20 relative">
             <a
