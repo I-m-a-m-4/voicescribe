@@ -1,3 +1,5 @@
+"use client";
+
 import Link from 'next/link';
 import { Mic2 } from 'lucide-react';
 
