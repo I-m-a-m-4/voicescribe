@@ -55,10 +55,14 @@ export default function Navbar() {
             {!loading && (
               <>
                 {isInfinite ? (
-                  <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-400 text-xs font-bold">
+                  <Link
+                    href="/admin"
+                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-900 dark:text-amber-400 text-xs font-bold transition-colors cursor-pointer"
+                    title="View Analytics & Revenue"
+                  >
                     <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                    Unlimited Admin
-                  </span>
+                    Admin Analytics ↗
+                  </Link>
                 ) : isPro ? (
                   <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-900 dark:text-emerald-400 text-xs font-bold">
                     <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -131,6 +135,17 @@ export default function Navbar() {
                             )}
                           </div>
                         </div>
+
+                        {isInfinite && (
+                          <Link
+                            href="/admin"
+                            onClick={() => setDropdownOpen(false)}
+                            className="w-full mt-1 flex items-center gap-2 px-3 py-2 rounded-xl text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            <Crown className="w-3.5 h-3.5" />
+                            Admin Analytics
+                          </Link>
+                        )}
 
                         {!isInfinite && !isPro && (
                           <button
