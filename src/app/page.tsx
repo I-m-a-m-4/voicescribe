@@ -174,15 +174,14 @@ export default function Home() {
   }, [theme]);
 
   return (
-    <div className="bg-transparent m-0 p-0 overflow-hidden min-h-screen w-full relative">
+    <div className="w-full min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 sm:p-6 sm:py-10 relative overflow-x-hidden">
       <canvas
         ref={canvasRef}
         className="fixed inset-0 w-full h-full pointer-events-none -z-10"
       />
 
-      <div className="fixed inset-0 overflow-y-auto flex items-center justify-center p-4 z-10 pt-20">
-        <div className="w-full relative max-w-4xl mx-auto my-auto">
-          <div className="relative card-border rounded-3xl flex flex-col p-6 sm:p-8 overflow-hidden bg-white/95 dark:bg-[#121214]/80 border border-gray-200 dark:border-white/10 shadow-2xl">
+      <div className="w-full relative max-w-4xl mx-auto z-10">
+        <div className="relative card-border rounded-3xl flex flex-col p-6 sm:p-8 overflow-hidden bg-white/95 dark:bg-[#121214]/80 border border-gray-200 dark:border-white/10 shadow-2xl">
             <div className="flex flex-col items-center justify-center text-center mb-6 z-20 relative">
               <span className="inline-block px-3 py-1 text-orange-700 dark:text-orange-300 rounded-full text-xs font-bold mb-3 border border-orange-500/30 bg-orange-500/10">
                 VoiceScribe Transcriber
@@ -332,7 +331,6 @@ export default function Home() {
               built by bimex-group.vercel.app
             </a>
           </div>
-        </div>
       </div>
     </div>
   );
