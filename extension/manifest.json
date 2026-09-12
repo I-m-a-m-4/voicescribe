@@ -2,10 +2,18 @@
   "manifest_version": 3,
   "name": "VoiceScribe",
   "version": "1.0",
-  "description": "Intelligent Audio to English Transcription powered by Groq",
+  "description": "Intelligent Audio to English Transcription powered by Groq Whisper",
+  "icons": {
+    "16": "icon.jpg",
+    "48": "icon.jpg",
+    "128": "icon.jpg"
+  },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "VoiceScribe"
+    "default_title": "VoiceScribe - Transcribe Audio",
+    "default_icon": "icon.jpg"
   },
-  "permissions": []
+  "permissions": [
+    "activeTab"
+  ]
 }

@@ -5,23 +5,243 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VoiceScribe</title>
     <style>
-        body {
+        * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            width: 450px;
-            height: 600px;
-            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        body {
+            width: 480px;
+            height: 620px;
             background-color: #09090b;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: rgba(18, 18, 20, 0.9);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(8px);
+            z-index: 10;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .brand img {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+        }
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .port-select {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fb923c;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 6px;
+            border-radius: 6px;
+            cursor: pointer;
+            outline: none;
+        }
+        .port-select option {
+            background: #18181b;
+            color: #fff;
+        }
+        .btn-open-tab {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #ea580c;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 6px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: none;
+        }
+        .btn-open-tab:hover {
+            background: #f97316;
+        }
+        .iframe-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            height: 100%;
         }
         iframe {
             width: 100%;
             height: 100%;
             border: none;
+            background: #09090b;
+        }
+        .offline-message {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: #09090b;
+            padding: 32px 24px;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .offline-message.visible {
+            display: flex;
+        }
+        .offline-icon {
+            width: 48px;
+            height: 48px;
+            background: rgba(234, 88, 12, 0.15);
+            color: #f97316;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+        .offline-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .offline-desc {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 20px;
+            line-height: 1.5;
+            max-width: 320px;
+        }
+        .cmd-box {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #fb923c;
+            margin-bottom: 16px;
         }
     </style>
 </head>
 <body>
-    <!-- For local testing, this points to the dev server. Update this to your deployed Vercel URL later! -->
-    <iframe src="http://localhost:3000" allow="microphone"></iframe>
+    <div class="header">
+        <a href="#" class="brand" id="brandLink">
+            <img src="icon.jpg" alt="VoiceScribe">
+            <span>VoiceScribe</span>
+        </a>
+        <div class="controls">
+            <select id="serverSelect" class="port-select">
+                <option value="http://localhost:3000">localhost:3000</option>
+                <option value="http://localhost:3001">localhost:3001</option>
+                <option value="https://voicescribe.vercel.app">Vercel Web App</option>
+            </select>
+            <button id="openTabBtn" class="btn-open-tab" title="Open full VoiceScribe web app in a browser tab">
+                Full Tab ↗
+            </button>
+        </div>
+    </div>
+
+    <div class="iframe-container">
+        <iframe id="appFrame" src="http://localhost:3000" allow="microphone; clipboard-write"></iframe>
+        
+        <div id="offlineCard" class="offline-message">
+            <div class="offline-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" x2="12" y1="19" y2="22"/>
+                </svg>
+            </div>
+            <div class="offline-title">Connecting to VoiceScribe...</div>
+            <div class="offline-desc">
+                If running locally, make sure your dev server is active in terminal:
+            </div>
+            <div class="cmd-box">npm run dev</div>
+            <button id="retryBtn" class="btn-open-tab" style="padding: 8px 16px; font-size: 12px;">
+                Switch to Port 3001 or Retry
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const appFrame = document.getElementById('appFrame');
+        const serverSelect = document.getElementById('serverSelect');
+        const openTabBtn = document.getElementById('openTabBtn');
+        const brandLink = document.getElementById('brandLink');
+        const offlineCard = document.getElementById('offlineCard');
+        const retryBtn = document.getElementById('retryBtn');
+
+        // Restore saved server URL preference or test ports
+        const savedUrl = localStorage.getItem('voicescribe_ext_url') || 'http://localhost:3000';
+        serverSelect.value = savedUrl;
+        appFrame.src = savedUrl;
+
+        serverSelect.addEventListener('change', (e) => {
+            const url = e.target.value;
+            localStorage.setItem('voicescribe_ext_url', url);
+            appFrame.src = url;
+            offlineCard.classList.remove('visible');
+        });
+
+        const openInNewTab = () => {
+            const url = serverSelect.value;
+            if (typeof chrome !== 'undefined' && chrome.tabs) {
+                chrome.tabs.create({ url: url });
+            } else {
+                window.open(url, '_blank');
+            }
+        };
+
+        openTabBtn.addEventListener('click', openInNewTab);
+        brandLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            openInNewTab();
+        });
+
+        retryBtn.addEventListener('click', () => {
+            const nextUrl = serverSelect.value === 'http://localhost:3000' ? 'http://localhost:3001' : 'http://localhost:3000';
+            serverSelect.value = nextUrl;
+            localStorage.setItem('voicescribe_ext_url', nextUrl);
+            appFrame.src = nextUrl;
+            offlineCard.classList.remove('visible');
+        });
+
+        // If iframe fails to load after 4 seconds, show offline tips
+        let loadTimeout = setTimeout(() => {
+            // Check if iframe loaded successfully
+            try {
+                if (!appFrame.contentWindow || appFrame.contentDocument === null) {
+                    offlineCard.classList.add('visible');
+                }
+            } catch (err) {
+                // Cross-origin loaded is actually successful
+            }
+        }, 4000);
+
+        appFrame.addEventListener('load', () => {
+            clearTimeout(loadTimeout);
+            offlineCard.classList.remove('visible');
+        });
+    </script>
 </body>
 </html>
