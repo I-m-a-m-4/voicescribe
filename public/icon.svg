@@ -1,0 +1,21 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Smooth Vibrant Orange Rounded Square -->
+  <rect width="512" height="512" rx="102.4" fill="#f97316"/>
+
+  <!-- VoiceScribe Microphone & Audio Wave Icon in Pure White -->
+  <g transform="translate(68, 64) scale(16)" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Microphone Capsule -->
+    <rect x="5" y="2.5" width="6" height="10" rx="3" />
+    
+    <!-- Microphone Cradle -->
+    <path d="M 2 9.5 a 6 6 0 0 0 12 0" />
+    
+    <!-- Stand & Base -->
+    <line x1="8" y1="15.5" x2="8" y2="20" />
+    <line x1="5" y1="20" x2="11" y2="20" />
+    
+    <!-- Sound Waves / Audio Waves -->
+    <path d="M 15.5 7.5 a 5 5 0 0 1 0 7" />
+    <path d="M 19 4.5 a 9.5 9.5 0 0 1 0 13" />
+  </g>
+</svg>

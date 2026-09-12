@@ -4,14 +4,14 @@
   "version": "1.0",
   "description": "Intelligent Audio to English Transcription powered by Groq Whisper",
   "icons": {
-    "16": "icon.jpg",
-    "48": "icon.jpg",
-    "128": "icon.jpg"
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
   },
   "action": {
     "default_popup": "popup.html",
     "default_title": "VoiceScribe - Transcribe Audio",
-    "default_icon": "icon.jpg"
+    "default_icon": "icon.png"
   },
   "permissions": [
     "activeTab"
