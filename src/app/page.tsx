@@ -14,6 +14,7 @@ export default function Home() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcription, setTranscription] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [translate, setTranslate] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { theme } = useTheme();
 
@@ -48,6 +49,7 @@ export default function Home() {
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("translate", translate.toString());
     if (user?.email) {
       formData.append("email", user.email);
     }
@@ -248,8 +250,24 @@ export default function Home() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mt-8 flex justify-center w-full"
+                  className="mt-8 flex flex-col items-center justify-center w-full gap-6"
                 >
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <div className="relative flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={translate}
+                        onChange={(e) => setTranslate(e.target.checked)}
+                      />
+                      <div className={`w-10 h-6 rounded-full transition-colors ${translate ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                      <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${translate ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 group-hover:text-gray-950 dark:group-hover:text-white transition-colors">
+                      Translate to English
+                    </span>
+                  </label>
+
                   {canTranscribe ? (
                     <button
                       onClick={handleTranscribe}
@@ -296,34 +314,9 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Chrome Extension Banner (commented out for now)
-          <div className="mt-8 p-6 rounded-2xl bg-white/80 dark:bg-[#121214]/80 border border-gray-200 dark:border-white/10 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 z-20 relative">
-            <div className="flex items-center gap-4 text-center sm:text-left">
-              <div className="p-3 rounded-2xl bg-orange-500/15 text-orange-600 dark:text-orange-400">
-                <Zap className="w-6 h-6 fill-current" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-gray-950 dark:text-white">
-                  Get the VoiceScribe Chrome Extension
-                </h3>
-                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium mt-0.5">
-                  Transcribe audio directly from any browser tab without leaving your workflow.
-                </p>
-              </div>
-            </div>
-            <a
-              href="/voicescribe-extension.zip"
-              download="voicescribe-extension.zip"
-              className="px-5 py-2.5 rounded-xl bg-gray-950 dark:bg-white text-white dark:text-gray-950 hover:bg-gray-800 dark:hover:bg-gray-200 text-xs font-bold transition-all shadow-md cursor-pointer flex-shrink-0"
-            >
-              Download Extension (.ZIP) ↓
-            </a>
-          </div>
-          */}
-
           <div className="mt-6 flex justify-center z-20 relative">
             <a
-              href="https://bimex-group.vercel.app"
+               href="https://bimex-group.vercel.app"
               target="_blank"
               rel="noopener noreferrer"
               className="text-orange-700 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 transition-colors text-xs font-semibold tracking-wide cursor-pointer"

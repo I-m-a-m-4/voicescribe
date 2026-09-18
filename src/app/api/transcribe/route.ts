@@ -54,12 +54,21 @@ export async function POST(req: NextRequest) {
     const fileBytes = await file.arrayBuffer();
     const fileBlob = new Blob([fileBytes], { type: file.type || "audio/mpeg" });
 
+    const translate = formData.get("translate") === "true";
+
     const groqFormData = new FormData();
     groqFormData.append("file", fileBlob, file.name || "recording.mp3");
-    groqFormData.append("model", "whisper-large-v3-turbo");
+    
+    // whisper-large-v3-turbo does not support translation, so we fall back to whisper-large-v3
+    const model = translate ? "whisper-large-v3" : "whisper-large-v3-turbo";
+    groqFormData.append("model", model);
     groqFormData.append("response_format", "json");
 
-    const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    const endpoint = translate
+      ? "https://api.groq.com/openai/v1/audio/translations"
+      : "https://api.groq.com/openai/v1/audio/transcriptions";
+
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,

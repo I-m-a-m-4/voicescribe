@@ -14,6 +14,9 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
+
 interface FileUploadZoneProps {
   onFileSelect: (file: File | null) => void;
   isLoading: boolean;
@@ -34,6 +37,32 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // FFmpeg State
+  const [isExtracting, setIsExtracting] = useState(false);
+  const ffmpegRef = useRef<any>(null);
+  const extractionLogRef = useRef<HTMLParagraphElement>(null);
+
+  const loadFFmpeg = async () => {
+    if (!ffmpegRef.current) {
+      ffmpegRef.current = new FFmpeg();
+    }
+    
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    const ffmpeg = ffmpegRef.current;
+    
+    if (!ffmpeg.loaded) {
+      ffmpeg.on('log', ({ message }: { message: string }) => {
+        if (extractionLogRef.current) {
+          extractionLogRef.current.innerText = message;
+        }
+      });
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      });
+    }
+  };
 
   // Clean up object URLs and recording streams
   useEffect(() => {
@@ -74,8 +103,32 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
     }
   };
 
-  const handleFile = (file: File) => {
-    if (file.type.startsWith("audio/") || file.type.startsWith("video/")) {
+  const handleFile = async (file: File) => {
+    if (file.type.startsWith("video/")) {
+      setIsExtracting(true);
+      try {
+        await loadFFmpeg();
+        const ffmpeg = ffmpegRef.current;
+        await ffmpeg.writeFile(file.name, await fetchFile(file));
+        const outName = 'output.mp3';
+        
+        await ffmpeg.exec(['-i', file.name, '-vn', '-c:a', 'libmp3lame', '-b:a', '128k', outName]);
+        const data = await ffmpeg.readFile(outName);
+        const audioBlob = new Blob([data], { type: 'audio/mpeg' });
+        const audioFile = new File([audioBlob], file.name.replace(/\.[^/.]+$/, "") + ".mp3", { type: "audio/mpeg" });
+        
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        const url = URL.createObjectURL(audioFile);
+        setPreviewUrl(url);
+        setSelectedFile(audioFile);
+        onFileSelect(audioFile);
+      } catch (err) {
+        console.error("FFmpeg error:", err);
+        alert("Failed to extract audio from video.");
+      } finally {
+        setIsExtracting(false);
+      }
+    } else if (file.type.startsWith("audio/")) {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
@@ -363,18 +416,25 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
           />
 
           <div className="bg-orange-500/10 dark:bg-white/5 p-4 rounded-full mb-4">
-            <UploadCloud
-              className={`w-10 h-10 ${
-                isDragActive ? "text-orange-500" : "text-orange-600 dark:text-orange-400"
-              }`}
-            />
+            {isExtracting ? (
+              <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <UploadCloud
+                className={`w-10 h-10 ${
+                  isDragActive ? "text-orange-500" : "text-orange-600 dark:text-orange-400"
+                }`}
+              />
+            )}
           </div>
 
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-            Click or drag &amp; drop to upload
+            {isExtracting ? "Extracting audio from video..." : "Click or drag & drop to upload"}
           </h3>
+          {isExtracting && (
+            <p ref={extractionLogRef} className="text-xs text-orange-600 font-mono mt-1 mb-2 max-w-xs truncate"></p>
+          )}
           <p className="text-sm text-gray-700 dark:text-gray-300 font-medium text-center max-w-sm">
-            Supported formats: MP3, WAV, MP4, M4A, OGG. Maximum file size: 25MB.
+            Supported formats: MP3, WAV, MP4, M4A, OGG. Maximum file size: 25MB (unlimited for video uploads as audio is extracted locally).
           </p>
         </motion.div>
       )}

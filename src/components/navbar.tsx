@@ -63,6 +63,13 @@ export default function Navbar() {
             </a>
             */}
 
+            <Link
+              href="/about"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 text-gray-800 dark:text-gray-200 text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <span>About</span>
+            </Link>
+
             {/* Dashboard Link for logged-in users */}
             {user && (
               <Link
@@ -161,6 +168,15 @@ export default function Navbar() {
                         </div>
 
                         {/* Navigation Links inside Dropdown */}
+                        <Link
+                          href="/about"
+                          onClick={() => setDropdownOpen(false)}
+                          className="w-full mt-1 flex items-center gap-2 px-3 py-2 rounded-xl text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 text-xs font-semibold transition-colors cursor-pointer sm:hidden"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                          About
+                        </Link>
+
                         <Link
                           href="/dashboard"
                           onClick={() => setDropdownOpen(false)}
