@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "VoiceScribe - AI Audio & Video Transcription",
+        "title": "VoiceScribe: AI Audio & Video Transcriber",
         "width": 1280,
         "height": 800,
         "resizable": true,
@@ -37,8 +37,8 @@
     "publisher": "VoiceScribe",
     "copyright": "Copyright © 2026 VoiceScribe",
     "category": "Productivity",
-    "shortDescription": "VoiceScribe AI Audio and Video Transcription Application",
-    "longDescription": "VoiceScribe provides powerful, privacy-first AI audio and video transcription directly on your device.",
+    "shortDescription": "Fast, accurate AI speech-to-text transcriber for audio and video files. Convert MP3, WAV, MP4 & MKV recordings into text with instant export and complete privacy.",
+    "longDescription": "VoiceScribe is a fast, highly accurate AI audio and video transcriber designed for professionals, students, and content creators. Easily transcribe meetings, lectures, interviews, and voice recordings into clean, editable text with complete privacy and instant export options.",
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
