@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 import Navbar from "@/components/navbar";
+import Footer from "@/components/footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/context/auth-context";
 import AuthModal from "@/components/auth-modal";
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <main className="flex-grow pt-16 relative z-10">
               {children}
             </main>
+            <Footer />
             <AuthModal />
             <PricingModal />
           </AuthProvider>
