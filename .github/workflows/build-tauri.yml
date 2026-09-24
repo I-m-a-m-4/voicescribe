@@ -40,6 +40,8 @@ jobs:
         run: npm ci
 
       - name: Build Next.js Static Export
+        env:
+          BUILD_TARGET: tauri
         run: npm run build
 
       - name: Build Windows MSI & EXE Bundles
@@ -84,6 +86,8 @@ jobs:
         run: npm ci
 
       - name: Build Next.js Static Export
+        env:
+          BUILD_TARGET: tauri
         run: npm run build
 
       - name: Build macOS DMG & APP Bundles
@@ -134,6 +138,8 @@ jobs:
         run: npm ci
 
       - name: Build Next.js Static Export
+        env:
+          BUILD_TARGET: tauri
         run: npm run build
 
       - name: Build Android APK & AAB
