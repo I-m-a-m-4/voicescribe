@@ -48,7 +48,7 @@ jobs:
       - name: Upload Windows MSI & EXE Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: VoiceScribe-Windows-Builds (MSI & EXE)
+          name: VoiceScribe-Windows-Builds
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
@@ -92,7 +92,7 @@ jobs:
       - name: Upload macOS DMG & APP Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: VoiceScribe-macOS-Builds (DMG & APP)
+          name: VoiceScribe-macOS-Builds
           path: |
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/macos/*.app
@@ -141,8 +141,44 @@ jobs:
       - name: Upload Android APK & AAB Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: VoiceScribe-Android-Builds (APK & AAB)
+          name: VoiceScribe-Android-Builds
           path: |
             src-tauri/gen/android/app/build/outputs/apk/**/*.apk
             src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
           if-no-files-found: warn
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-macos, build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download All Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Publish to GitHub Releases Page
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.0' }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || 'VoiceScribe v0.1.0 Release' }}
+          body: |
+            ## VoiceScribe Native Multi-Platform Release
+
+            Download official VoiceScribe binaries for your device:
+            - 🖥️ **Windows**: `.msi` (Microsoft Store / Installer) & `.exe` (NSIS Setup)
+            - 🍏 **macOS**: `.dmg` (Disk Image)
+            - 📱 **Android**: `.apk` (Standalone Package) & `.aab` (Google Play Bundle)
+          draft: false
+          prerelease: false
+          files: |
+            ./artifacts/**/*.msi
+            ./artifacts/**/*.exe
+            ./artifacts/**/*.dmg
+            ./artifacts/**/*.apk
+            ./artifacts/**/*.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
