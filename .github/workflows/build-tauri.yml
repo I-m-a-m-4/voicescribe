@@ -1,4 +1,4 @@
-name: Build & Package VoiceScribe (Tauri Native)
+name: Build & Package VoiceScribe (MSI, EXE, APK, AAB)
 
 on:
   push:
@@ -11,9 +11,10 @@ on:
 
 jobs:
   build-windows:
+    name: Build Windows Desktop (MSI & EXE)
+    runs-on: windows-latest
     permissions:
       contents: write
-    runs-on: windows-latest
 
     steps:
       - name: Checkout Repository
@@ -35,32 +36,78 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
-      - name: Install NPM Dependencies
+      - name: Install Dependencies
         run: npm ci
 
-      - name: Build Next.js Application
+      - name: Build Next.js Static Export
         run: npm run build
 
-      - name: Build Tauri Desktop Application (MSI / Bundle)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: v__VERSION__
-          releaseName: 'VoiceScribe v__VERSION__'
-          releaseBody: 'Download the latest VoiceScribe Windows native desktop build below.'
-          releaseDraft: true
-          prerelease: false
-          includeRelease: ${{ startsWith(github.ref, 'refs/tags/') }}
-          args: --target x86_64-pc-windows-msvc
+      - name: Build Windows MSI & EXE Bundles
+        run: npx tauri build --bundles msi,nsis
 
-      - name: Upload Windows Build Artifacts
+      - name: Upload Windows MSI & EXE Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: VoiceScribe-Windows-Builds
+          name: VoiceScribe-Windows-Builds (MSI & EXE)
           path: |
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: ignore
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          if-no-files-found: warn
+
+  build-android:
+    name: Build Android Packages (APK & AAB)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup NDK
+        uses: nontraditional/setup-ndk@v1
+        with:
+          ndk-version: r25c
+
+      - name: Install Rust Toolchain & Android Targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Next.js Static Export
+        run: npm run build
+
+      - name: Initialize & Build Android APK & AAB
+        run: |
+          npx tauri android init --ci || true
+          npx tauri android build --apk --aab --ci
+
+      - name: Upload Android APK & AAB Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceScribe-Android-Builds (APK & AAB)
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+            src-tauri/gen/android/app/build/outputs/apk/release/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: warn
