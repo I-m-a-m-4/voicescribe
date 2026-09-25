@@ -174,8 +174,8 @@ jobs:
       - name: Publish to GitHub Releases Page
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0
-          name: 'VoiceScribe v0.1.0 Native Release'
+          tag_name: ${{ github.ref_name }}
+          name: 'VoiceScribe ${{ github.ref_name }} Native Release'
           body: |
             ## VoiceScribe Native Multi-Platform Release
 
