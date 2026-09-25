@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 const ADMIN_EMAIL = "belloimam431@gmail.com";
 
 const corsHeaders = {

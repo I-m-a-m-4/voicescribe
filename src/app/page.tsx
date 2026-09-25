@@ -63,7 +63,24 @@ export default function Home() {
         body: formData,
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get("content-type") || "";
+      let data: any = {};
+
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const rawText = await response.text();
+        console.error("Non-JSON API response:", response.status, rawText);
+        if (response.status === 413) {
+          throw new Error("The uploaded file exceeds the maximum server upload size. Please try a smaller audio file (under 25MB).");
+        }
+        throw new Error(
+          rawText.includes("<!DOCTYPE") || rawText.includes("<html")
+            ? `Server Error (${response.status}): Unable to process audio request.`
+            : rawText || `Server returned error status ${response.status}`
+        );
+      }
+
       if (!response.ok) {
         if (response.status === 403 || data.limitReached) {
           setIsPricingModalOpen(true);

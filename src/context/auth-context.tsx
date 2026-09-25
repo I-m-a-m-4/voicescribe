@@ -5,6 +5,8 @@ import {
   User,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -143,6 +145,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const savedProvider = localStorage.getItem("voicescribe_last_auth_provider");
     if (savedProvider) setLastAuthProvider(savedProvider);
 
+    // Handle Auth Redirect result if popup was blocked
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result?.user) {
+          const providerId = (result.providerId && result.providerId.includes("google")) ? "google" : "apple";
+          localStorage.setItem("voicescribe_last_auth_provider", providerId);
+          setLastAuthProvider(providerId);
+          await fetchUserData(result.user);
+          loadHistory(result.user.uid);
+          setIsAuthModalOpen(false);
+        }
+      })
+      .catch((err) => {
+        console.warn("Auth redirect result error:", err);
+      });
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
@@ -239,24 +257,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    const result = await signInWithPopup(auth, googleProvider);
-    if (result.user) {
-      localStorage.setItem("voicescribe_last_auth_provider", "google");
-      setLastAuthProvider("google");
-      await fetchUserData(result.user);
-      loadHistory(result.user.uid);
-      setIsAuthModalOpen(false);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user) {
+        localStorage.setItem("voicescribe_last_auth_provider", "google");
+        setLastAuthProvider("google");
+        await fetchUserData(result.user);
+        loadHistory(result.user.uid);
+        setIsAuthModalOpen(false);
+      }
+    } catch (err: any) {
+      if (
+        err?.code === "auth/popup-blocked" ||
+        err?.code === "auth/popup-closed-by-user" ||
+        err?.code === "auth/cancelled-popup-request"
+      ) {
+        console.warn("Google auth popup blocked or closed, falling back to redirect auth...");
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+      throw err;
     }
   };
 
   const signInWithApple = async () => {
-    const result = await signInWithPopup(auth, appleProvider);
-    if (result.user) {
-      localStorage.setItem("voicescribe_last_auth_provider", "apple");
-      setLastAuthProvider("apple");
-      await fetchUserData(result.user);
-      loadHistory(result.user.uid);
-      setIsAuthModalOpen(false);
+    try {
+      const result = await signInWithPopup(auth, appleProvider);
+      if (result.user) {
+        localStorage.setItem("voicescribe_last_auth_provider", "apple");
+        setLastAuthProvider("apple");
+        await fetchUserData(result.user);
+        loadHistory(result.user.uid);
+        setIsAuthModalOpen(false);
+      }
+    } catch (err: any) {
+      if (
+        err?.code === "auth/popup-blocked" ||
+        err?.code === "auth/popup-closed-by-user" ||
+        err?.code === "auth/cancelled-popup-request"
+      ) {
+        console.warn("Apple auth popup blocked or closed, falling back to redirect auth...");
+        await signInWithRedirect(auth, appleProvider);
+        return;
+      }
+      throw err;
     }
   };
 
