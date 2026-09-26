@@ -76,7 +76,10 @@ export default function PricingModal() {
       callback: async (response: { reference: string }) => {
         try {
           // Verify with server endpoint
-          const res = await fetch("/api/payment/verify", {
+          const isTauri = typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__ !== undefined || window.location.protocol === "tauri:";
+          const verifyUrl = isTauri ? "https://bimex-group.vercel.app/api/payment/verify" : "/api/payment/verify";
+
+          const res = await fetch(verifyUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

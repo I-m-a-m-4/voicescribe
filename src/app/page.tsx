@@ -58,7 +58,10 @@ export default function Home() {
     }
 
     try {
-      const response = await fetch("/api/transcribe", {
+      const isTauri = typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__ !== undefined || window.location.protocol === "tauri:";
+      const apiUrl = isTauri ? "https://bimex-group.vercel.app/api/transcribe" : "/api/transcribe";
+
+      const response = await fetch(apiUrl, {
         method: "POST",
         body: formData,
       });
