@@ -77,7 +77,7 @@ export default function PricingModal() {
         try {
           // Verify with server endpoint
           const isTauri = typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__ !== undefined || window.location.protocol === "tauri:";
-          const verifyUrl = isTauri ? "https://bimex-group.vercel.app/api/payment/verify" : "/api/payment/verify";
+          const verifyUrl = isTauri ? "https://usevoicescribe.vercel.app/api/payment/verify" : "/api/payment/verify";
 
           const res = await fetch(verifyUrl, {
             method: "POST",
