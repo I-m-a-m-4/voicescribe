@@ -117,7 +117,7 @@ export default function PrivacyPolicyPage() {
             </h3>
           </div>
           <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
-            Payments are processed securely via <strong>Paystack</strong>. VoiceScribe never receives or stores your full credit card details, PINs, or banking passwords. Payment authentication and compliance are handled end-to-end by Paystack's PCI-DSS compliant infrastructure.
+            Payments are processed securely via <strong>Flutterwave</strong>. VoiceScribe never receives or stores your full credit card details, PINs, or banking passwords. Payment authentication and compliance are handled end-to-end by Flutterwave's PCI-DSS compliant infrastructure.
           </p>
         </section>
 

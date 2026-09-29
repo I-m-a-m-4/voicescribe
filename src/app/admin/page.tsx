@@ -298,7 +298,7 @@ export default function AdminDashboard() {
             VoiceScribe Platform Analytics &amp; Billing
           </h1>
           <p className="text-sm text-gray-700 dark:text-gray-400 mt-1">
-            Real-time tracking of subscribers, Creator (₦5k) vs Business (₦12k) revenue, and payment references.
+            Real-time tracking of subscribers, Creator (₦5k / $5) vs Business (₦12k / $12) revenue, and Flutterwave payment references.
           </p>
         </div>
 
@@ -461,10 +461,10 @@ export default function AdminDashboard() {
             </div>
             <div>
               <h2 className="text-base font-bold text-gray-950 dark:text-white">
-                Integrated Payment Verification &amp; Tier Sandbox
+                Integrated Flutterwave Payment Verification &amp; Tier Sandbox
               </h2>
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                Validate live Paystack transactions or test tier resolution directly against the API endpoint.
+                Validate live Flutterwave transactions or test tier resolution directly against the API endpoint.
               </p>
             </div>
           </div>
@@ -473,7 +473,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-              Paystack Reference
+              Flutterwave Reference / TxID
             </label>
             <input
               type="text"
@@ -507,7 +507,7 @@ export default function AdminDashboard() {
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Test Paystack Verification
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Test Flutterwave Verification
                 </>
               )}
             </button>
@@ -539,7 +539,7 @@ export default function AdminDashboard() {
               Users &amp; Subscribers Directory
             </h2>
             <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 font-medium">
-              Real-time billing status, Paystack reference codes, and plan tier controls.
+              Real-time billing status, Flutterwave transaction reference codes, and plan tier controls.
             </p>
           </div>
 

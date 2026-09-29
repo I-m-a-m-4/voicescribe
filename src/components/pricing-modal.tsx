@@ -8,11 +8,6 @@ import { useLocationCurrency } from "@/hooks/use-location-currency";
 
 declare global {
   interface Window {
-    PaystackPop?: {
-      setup: (options: any) => {
-        openIframe: () => void;
-      };
-    };
     FlutterwaveCheckout?: (options: any) => void;
   }
 }
@@ -52,8 +47,6 @@ export default function PricingModal() {
       name: "Creator",
       priceNGN: 5000,
       priceUSD: 5,
-      kobo: 500000,
-      usdCents: 500,
       badge: "Voice & Shorts",
       maxMinutes: "20 minutes",
       features: [
@@ -69,8 +62,6 @@ export default function PricingModal() {
       name: "Business & Long-Form",
       priceNGN: 12000,
       priceUSD: 12,
-      kobo: 1200000,
-      usdCents: 1200,
       badge: "Most Popular",
       maxMinutes: "90 minutes",
       features: [
@@ -85,11 +76,14 @@ export default function PricingModal() {
   };
 
   const currentPlan = planDetails[selectedPlan];
-  const displayPrice = currency === "NGN"
+  const isNgn = currency === "NGN";
+  const chargeAmount = isNgn ? currentPlan.priceNGN : currentPlan.priceUSD;
+  const chargeCurrency = isNgn ? "NGN" : "USD";
+  const displayPrice = isNgn
     ? `₦${currentPlan.priceNGN.toLocaleString()}`
     : `$${currentPlan.priceUSD}`;
 
-  // Handle Flutterwave Checkout for USD / International
+  // Handle Flutterwave Checkout (Supports both NGN and USD)
   const handleFlutterwaveCheckout = (flwPublicKey: string) => {
     if (typeof window === "undefined" || !window.FlutterwaveCheckout) {
       setError("Flutterwave gateway is loading. Please try again in a moment.");
@@ -97,17 +91,23 @@ export default function PricingModal() {
       return;
     }
 
-    const txRef = `vs_flw_${selectedPlan}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+    const txRef = `vs_flw_${selectedPlan}_${chargeCurrency.toLowerCase()}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 
     window.FlutterwaveCheckout({
       public_key: flwPublicKey,
       tx_ref: txRef,
-      amount: currentPlan.priceUSD,
-      currency: "USD",
-      payment_options: "card,banktransfer,mobilemoney",
+      amount: chargeAmount,
+      currency: chargeCurrency,
+      payment_options: "card,banktransfer,mobilemoney,ussd",
       customer: {
         email: user?.email || "customer@voicescribe.ai",
         name: user?.displayName || "VoiceScribe User",
+      },
+      meta: {
+        plan: selectedPlan,
+        uid: user?.uid || "",
+        currency: chargeCurrency,
+        maxMinutes: currentPlan.maxMinutes,
       },
       customizations: {
         title: `VoiceScribe ${currentPlan.name} Plan`,
@@ -162,94 +162,6 @@ export default function PricingModal() {
     });
   };
 
-  // Handle Paystack Checkout for NGN / Direct
-  const handlePaystackCheckout = (paystackPublicKey: string) => {
-    if (typeof window === "undefined" || !window.PaystackPop) {
-      setError("Payment gateway is initializing. Please try again in a moment.");
-      setLoading(false);
-      return;
-    }
-
-    const isUsd = currency === "USD";
-    const amountToCharge = isUsd ? currentPlan.usdCents : currentPlan.kobo;
-    const currencyToCharge = isUsd ? "USD" : "NGN";
-
-    const handler = window.PaystackPop.setup({
-      key: paystackPublicKey,
-      email: user?.email || "customer@voicescribe.ai",
-      amount: amountToCharge,
-      currency: currencyToCharge,
-      ref: `vs_${selectedPlan}_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
-      metadata: {
-        plan: selectedPlan,
-        currency: currencyToCharge,
-        custom_fields: [
-          {
-            display_name: "User ID",
-            variable_name: "uid",
-            value: user?.uid,
-          },
-          {
-            display_name: "Plan Tier",
-            variable_name: "plan",
-            value: selectedPlan,
-          },
-          {
-            display_name: "Max Minutes",
-            variable_name: "max_minutes",
-            value: currentPlan.maxMinutes,
-          },
-        ],
-      },
-      callback: async (response: { reference: string }) => {
-        // 1. Immediately upgrade client state & UI badge with zero latency
-        await activateProPlan(selectedPlan, response.reference);
-        setSuccess(true);
-        setLoading(false);
-
-        try {
-          // 2. Verify with server endpoint and synchronize server records
-          const isTauri =
-            (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__ !== undefined) ||
-            window.location.protocol === "tauri:";
-          const verifyUrl = isTauri
-            ? "https://usevoicescribe.vercel.app/api/payment/verify"
-            : "/api/payment/verify";
-
-          const res = await fetch(verifyUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              reference: response.reference,
-              email: user?.email,
-              uid: user?.uid,
-            }),
-          });
-
-          const data = await res.json();
-          if (res.ok && data.success) {
-            const activePlan = data.planTier || selectedPlan;
-            await activateProPlan(activePlan, response.reference);
-            await refreshUserData();
-          }
-        } catch (err: any) {
-          console.warn("Background verification network note:", err);
-        } finally {
-          setTimeout(() => {
-            setIsPricingModalOpen(false);
-            setPricingModalNotice(null);
-            setSuccess(false);
-          }, 2000);
-        }
-      },
-      onClose: () => {
-        setLoading(false);
-      },
-    });
-
-    handler.openIframe();
-  };
-
   // Main Checkout Trigger
   const handleCheckout = () => {
     setError(null);
@@ -263,33 +175,15 @@ export default function PricingModal() {
 
     setLoading(true);
 
-    const paystackPublicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
     const flutterwavePublicKey = process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY;
 
-    // For USD currency: Prefer Flutterwave if configured, otherwise Paystack
-    if (currency === "USD") {
-      if (flutterwavePublicKey) {
-        handleFlutterwaveCheckout(flutterwavePublicKey);
-        return;
-      }
-      if (paystackPublicKey) {
-        handlePaystackCheckout(paystackPublicKey);
-        return;
-      }
-    } else {
-      // For NGN currency: Use Paystack
-      if (paystackPublicKey) {
-        handlePaystackCheckout(paystackPublicKey);
-        return;
-      }
-      if (flutterwavePublicKey) {
-        handleFlutterwaveCheckout(flutterwavePublicKey);
-        return;
-      }
+    if (flutterwavePublicKey) {
+      handleFlutterwaveCheckout(flutterwavePublicKey);
+      return;
     }
 
-    // If no keys configured in environment
-    setError("Payment gateway is being configured. Please try again shortly.");
+    // If no Flutterwave public key is configured
+    setError("Flutterwave gateway is being initialized. Please ensure NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY is set in environment.");
     setLoading(false);
   };
 
@@ -526,7 +420,7 @@ export default function PricingModal() {
 
               <div className="flex items-center justify-center gap-2 mt-4 text-[11px] text-gray-400">
                 <Shield className="w-3.5 h-3.5" />
-                <span>Secured by 256-bit bank-grade SSL encryption. Cancel anytime.</span>
+                <span>Secured by Flutterwave 256-bit bank-grade SSL encryption. Cancel anytime.</span>
               </div>
             </>
           )}
