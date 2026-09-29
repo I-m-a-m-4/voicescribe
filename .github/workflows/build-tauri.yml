@@ -68,6 +68,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$pkg/Assets" | Out-Null
           Copy-Item $exePath "$pkg/VoiceScribe.exe"
 
+          # Copy committed AppxManifest (avoids embedding XML in YAML)
+          Copy-Item "src-tauri/AppxManifest.xml" "$pkg/AppxManifest.xml"
+
           # Resize icons using System.Drawing
           Add-Type -AssemblyName System.Drawing
           $iconSrc = "src-tauri/icons/128x128.png"
@@ -86,43 +89,6 @@ jobs:
           Resize-Icon $iconSrc "$pkg/Assets/Wide310x150Logo.png"   310 150
           Resize-Icon $iconSrc "$pkg/Assets/StoreLogo.png"          50  50
           Resize-Icon $iconSrc "$pkg/Assets/SplashScreen.png"      620 300
-
-          # Write AppxManifest.xml
-          @'
-<?xml version="1.0" encoding="utf-8"?>
-<Package
-  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
-  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap rescap">
-  <Identity Name="com.voicescribe.app" Publisher="CN=Bimex" Version="0.1.0.0" ProcessorArchitecture="x64"/>
-  <Properties>
-    <DisplayName>VoiceScribe</DisplayName>
-    <PublisherDisplayName>Bimex</PublisherDisplayName>
-    <Logo>Assets\StoreLogo.png</Logo>
-  </Properties>
-  <Dependencies>
-    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0"/>
-  </Dependencies>
-  <Resources>
-    <Resource Language="en-US"/>
-  </Resources>
-  <Applications>
-    <Application Id="VoiceScribe" Executable="VoiceScribe.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="VoiceScribe" Description="AI Audio and Video Transcriber"
-        Square150x150Logo="Assets\Square150x150Logo.png"
-        Square44x44Logo="Assets\Square44x44Logo.png"
-        BackgroundColor="transparent">
-        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png"/>
-        <uap:SplashScreen Image="Assets\SplashScreen.png"/>
-      </uap:VisualElements>
-    </Application>
-  </Applications>
-  <Capabilities>
-    <rescap:Capability Name="runFullTrust"/>
-  </Capabilities>
-</Package>
-'@ | Out-File "$pkg/AppxManifest.xml" -Encoding utf8NoBOM
 
           # Locate makeappx.exe (Windows SDK, available on windows-latest)
           $makeappx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "makeappx.exe" |
@@ -265,7 +231,7 @@ jobs:
             ## VoiceScribe Native Multi-Platform Release
 
             Download official VoiceScribe binaries for your device:
-            - 🖥️ **Windows**: `.msix` (Microsoft Store), `.msi` (Windows Installer) & `.exe` (NSIS Setup)
+            - 🖥️ **Windows**: `.msix` (Sideload/Store), `.msi` (Windows Installer) & `.exe` (NSIS Setup)
             - 🍏 **macOS**: `.dmg` (Disk Image)
             - 📱 **Android**: `.apk` (Standalone Package) & `.aab` (Google Play Bundle)
           draft: false
