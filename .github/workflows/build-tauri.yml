@@ -50,8 +50,8 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          # Find VoiceScribe.exe recursively (excludes incremental/deps artifacts)
-          $exePath = Get-ChildItem -Path "src-tauri/target" -Recurse -Filter "VoiceScribe.exe" -ErrorAction SilentlyContinue |
+          # Find app.exe recursively (excludes incremental/deps artifacts)
+          $exePath = Get-ChildItem -Path "src-tauri/target" -Recurse -Filter "app.exe" -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notlike "*\deps\*" -and $_.FullName -notlike "*\incremental\*" } |
             Sort-Object Length -Descending |
             Select-Object -First 1 -ExpandProperty FullName
@@ -59,7 +59,7 @@ jobs:
           if (-not $exePath) {
             Write-Host "--- Searching all target dirs for debug ---"
             Get-ChildItem -Path "src-tauri/target" -Recurse -Filter "*.exe" | Select-Object FullName, Length
-            Write-Error "VoiceScribe.exe not found!"
+            Write-Error "app.exe not found!"
             exit 1
           }
           Write-Host "Found binary: $exePath"
