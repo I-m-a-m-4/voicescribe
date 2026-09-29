@@ -50,18 +50,19 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          # Locate the compiled binary
-          $releaseDirs = @(
-            "src-tauri/target/release",
-            "src-tauri/target/x86_64-pc-windows-msvc/release"
-          )
-          $exePath = $null
-          foreach ($d in $releaseDirs) {
-            $c = "$d/VoiceScribe.exe"
-            if (Test-Path $c) { $exePath = $c; break }
+          # Find VoiceScribe.exe recursively (excludes incremental/deps artifacts)
+          $exePath = Get-ChildItem -Path "src-tauri/target" -Recurse -Filter "VoiceScribe.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notlike "*\deps\*" -and $_.FullName -notlike "*\incremental\*" } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $exePath) {
+            Write-Host "--- Searching all target dirs for debug ---"
+            Get-ChildItem -Path "src-tauri/target" -Recurse -Filter "*.exe" | Select-Object FullName, Length
+            Write-Error "VoiceScribe.exe not found!"
+            exit 1
           }
-          if (-not $exePath) { Write-Error "VoiceScribe.exe not found!"; exit 1 }
-          Write-Host "Binary: $exePath"
+          Write-Host "Found binary: $exePath"
 
           # Staging layout
           $pkg = "msix-package"
