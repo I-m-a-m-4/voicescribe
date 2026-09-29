@@ -42,8 +42,98 @@ jobs:
       - name: Build Next.js Static Export for Tauri
         run: npm run build:tauri
 
-      - name: Build Windows MSI, EXE & MSIX Bundles
-        run: npx tauri build --bundles msi,nsis,msix
+      - name: Build Windows MSI & EXE Bundles
+        run: npx tauri build --bundles msi,nsis
+
+      - name: Create MSIX Package (via makeappx)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          # Locate the compiled binary
+          $releaseDirs = @(
+            "src-tauri/target/release",
+            "src-tauri/target/x86_64-pc-windows-msvc/release"
+          )
+          $exePath = $null
+          foreach ($d in $releaseDirs) {
+            $c = "$d/VoiceScribe.exe"
+            if (Test-Path $c) { $exePath = $c; break }
+          }
+          if (-not $exePath) { Write-Error "VoiceScribe.exe not found!"; exit 1 }
+          Write-Host "Binary: $exePath"
+
+          # Staging layout
+          $pkg = "msix-package"
+          New-Item -ItemType Directory -Force -Path "$pkg/Assets" | Out-Null
+          Copy-Item $exePath "$pkg/VoiceScribe.exe"
+
+          # Resize icons using System.Drawing
+          Add-Type -AssemblyName System.Drawing
+          $iconSrc = "src-tauri/icons/128x128.png"
+          function Resize-Icon($src, $dst, $w, $h) {
+            $orig = [System.Drawing.Image]::FromFile((Resolve-Path $src).Path)
+            $bmp  = New-Object System.Drawing.Bitmap($w, $h)
+            $g    = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $g.DrawImage($orig, 0, 0, $w, $h)
+            $g.Dispose(); $orig.Dispose()
+            $bmp.Save((Join-Path (Get-Location).Path $dst), [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+          }
+          Resize-Icon $iconSrc "$pkg/Assets/Square44x44Logo.png"   44  44
+          Resize-Icon $iconSrc "$pkg/Assets/Square150x150Logo.png" 150 150
+          Resize-Icon $iconSrc "$pkg/Assets/Wide310x150Logo.png"   310 150
+          Resize-Icon $iconSrc "$pkg/Assets/StoreLogo.png"          50  50
+          Resize-Icon $iconSrc "$pkg/Assets/SplashScreen.png"      620 300
+
+          # Write AppxManifest.xml
+          @'
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+  <Identity Name="com.voicescribe.app" Publisher="CN=Bimex" Version="0.1.0.0" ProcessorArchitecture="x64"/>
+  <Properties>
+    <DisplayName>VoiceScribe</DisplayName>
+    <PublisherDisplayName>Bimex</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0"/>
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-US"/>
+  </Resources>
+  <Applications>
+    <Application Id="VoiceScribe" Executable="VoiceScribe.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="VoiceScribe" Description="AI Audio and Video Transcriber"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png"
+        BackgroundColor="transparent">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png"/>
+        <uap:SplashScreen Image="Assets\SplashScreen.png"/>
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust"/>
+  </Capabilities>
+</Package>
+'@ | Out-File "$pkg/AppxManifest.xml" -Encoding utf8NoBOM
+
+          # Locate makeappx.exe (Windows SDK, available on windows-latest)
+          $makeappx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "makeappx.exe" |
+            Where-Object { $_.FullName -like "*x64*" } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $makeappx) { Write-Error "makeappx.exe not found"; exit 1 }
+          Write-Host "Using makeappx: $($makeappx.FullName)"
+
+          New-Item -ItemType Directory -Force -Path "msix-output" | Out-Null
+          & $makeappx.FullName pack /d $pkg /p "msix-output/VoiceScribe_0.1.0_x64.msix" /nv /o
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "MSIX created successfully!"
 
       - name: Upload Windows MSI, EXE & MSIX Artifacts
         uses: actions/upload-artifact@v4
@@ -52,10 +142,9 @@ jobs:
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msix/*.msix
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msix/*.msix
+            msix-output/*.msix
           if-no-files-found: warn
 
   build-macos:
