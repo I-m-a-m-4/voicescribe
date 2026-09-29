@@ -90,7 +90,7 @@ async function processAudioUrl(url) {
     const blob = await response.blob();
     const mimeType = blob.type || "audio/ogg";
 
-    showHudLoading("Transcribing with Groq Whisper AI (~1.5s)...");
+    showHudLoading("Transcribing with VoiceScribe Speech Engine (~1.5s)...");
 
     const reader = new FileReader();
     reader.onloadend = () => {

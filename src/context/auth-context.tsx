@@ -17,6 +17,8 @@ import { auth, db, googleProvider, appleProvider } from "@/lib/firebase";
 const ADMIN_EMAIL = "belloimam431@gmail.com";
 const FREE_TIER_LIMIT = 2;
 
+export type PlanTier = "free" | "creator" | "business";
+
 export interface TranscriptionItem {
   id: string;
   fileName: string;
@@ -29,6 +31,7 @@ export interface TranscriptionItem {
 interface UserProfile {
   usageCount: number;
   isPro: boolean;
+  planTier?: PlanTier;
   email: string;
 }
 
@@ -37,6 +40,8 @@ interface AuthContextType {
   loading: boolean;
   isPro: boolean;
   isInfinite: boolean;
+  planTier: PlanTier;
+  maxDurationMinutes: number;
   usageCount: number;
   remainingFreeUses: number;
   canTranscribe: boolean;
@@ -44,6 +49,8 @@ interface AuthContextType {
   setIsAuthModalOpen: (open: boolean) => void;
   isPricingModalOpen: boolean;
   setIsPricingModalOpen: (open: boolean) => void;
+  pricingModalNotice: string | null;
+  setPricingModalNotice: (notice: string | null) => void;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
@@ -51,6 +58,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   recordTranscriptionSuccess: (transcriptionData?: { fileName: string; fileSize: string; text: string }) => Promise<void>;
   refreshUserData: () => Promise<void>;
+  activateProPlan: (plan: PlanTier, ref?: string) => Promise<void>;
   lastAuthProvider: string | null;
   transcriptionHistory: TranscriptionItem[];
   deleteTranscriptionItem: (id: string) => void;
@@ -62,14 +70,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPro, setIsPro] = useState(false);
+  const [planTier, setPlanTier] = useState<PlanTier>("free");
   const [usageCount, setUsageCount] = useState(0);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
+  const [pricingModalNotice, setPricingModalNotice] = useState<string | null>(null);
   const [lastAuthProvider, setLastAuthProvider] = useState<string | null>(null);
   const [transcriptionHistory, setTranscriptionHistory] = useState<TranscriptionItem[]>([]);
 
   // Check if current user is the VIP admin
   const isInfinite = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+  // Max duration allowed in minutes based on tier
+  const maxDurationMinutes = isInfinite
+    ? 180
+    : planTier === "business"
+      ? 90
+      : planTier === "creator"
+        ? 20
+        : 5;
 
   // Load history from localStorage
   const loadHistory = useCallback((userId?: string) => {
@@ -93,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Guarantee admin infinite status immediately
     if (isBello) {
       setIsPro(true);
+      setPlanTier("business");
     }
 
     try {
@@ -105,15 +125,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           displayName: firebaseUser.displayName || "",
           usageCount: 0,
           isPro: isBello,
+          planTier: isBello ? "business" : "free",
           createdAt: new Date().toISOString(),
         };
         await setDoc(userRef, initialData);
         setUsageCount(0);
         setIsPro(isBello);
+        setPlanTier(isBello ? "business" : "free");
       } else {
         const data = userSnap.data() as UserProfile;
+        const userPro = Boolean(data.isPro || isBello);
+        const resolvedTier: PlanTier = isBello
+          ? "business"
+          : (data.planTier || (userPro ? "creator" : "free"));
+
         setUsageCount(data.usageCount || 0);
-        setIsPro(Boolean(data.isPro || isBello));
+        setIsPro(userPro);
+        setPlanTier(resolvedTier);
       }
     } catch (err: any) {
       // Graceful fallback for permission-denied or network errors
@@ -123,13 +151,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
+          const parsedPro = Boolean(parsed.isPro || isBello);
           setUsageCount(parsed.usageCount || 0);
-          setIsPro(Boolean(parsed.isPro || isBello));
+          setIsPro(parsedPro);
+          setPlanTier(isBello ? "business" : parsed.planTier || (parsedPro ? "creator" : "free"));
         } catch {
           setIsPro(isBello);
+          setPlanTier(isBello ? "business" : "free");
         }
       } else {
         setIsPro(isBello);
+        setPlanTier(isBello ? "business" : "free");
       }
     }
   }, []);
@@ -166,6 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (firebaseUser) {
         loadHistory(firebaseUser.uid);
         await fetchUserData(firebaseUser);
+        setIsAuthModalOpen(false);
       } else {
         loadHistory();
         const guestUsage = parseInt(localStorage.getItem("voicescribe_guest_usage") || "0", 10);
@@ -235,7 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const newGuestUsage = usageCount + 1;
       setUsageCount(newGuestUsage);
       localStorage.setItem("voicescribe_guest_usage", newGuestUsage.toString());
-      
+
       // Popup after 2nd generation (user requirement: "should be the second time")
       if (newGuestUsage >= 2) {
         setTimeout(() => {
@@ -268,11 +301,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err: any) {
       if (
-        err?.code === "auth/popup-blocked" ||
         err?.code === "auth/popup-closed-by-user" ||
         err?.code === "auth/cancelled-popup-request"
       ) {
-        console.warn("Google auth popup blocked or closed, falling back to redirect auth...");
+        // User closed or cancelled popup window, no action needed
+        return;
+      }
+      if (err?.code === "auth/popup-blocked") {
+        console.warn("Google auth popup blocked by browser, attempting redirect...");
         await signInWithRedirect(auth, googleProvider);
         return;
       }
@@ -292,11 +328,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err: any) {
       if (
-        err?.code === "auth/popup-blocked" ||
         err?.code === "auth/popup-closed-by-user" ||
         err?.code === "auth/cancelled-popup-request"
       ) {
-        console.warn("Apple auth popup blocked or closed, falling back to redirect auth...");
+        return;
+      }
+      if (err?.code === "auth/popup-blocked") {
+        console.warn("Apple auth popup blocked by browser, attempting redirect...");
         await signInWithRedirect(auth, appleProvider);
         return;
       }
@@ -327,6 +365,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
 
+  const activateProPlan = async (tier: PlanTier, ref?: string) => {
+    // 1. Instant synchronous state upgrade
+    setIsPro(true);
+    setPlanTier(tier);
+
+    // 2. Synchronous local cache persistence
+    if (user) {
+      const localProfileKey = `voicescribe_profile_${user.uid}`;
+      try {
+        localStorage.setItem(
+          localProfileKey,
+          JSON.stringify({ usageCount: 0, isPro: true, planTier: tier, paymentReference: ref })
+        );
+      } catch (e) {
+        console.warn("Local storage cache warning", e);
+      }
+
+      // 3. Firestore persistence
+      try {
+        const userRef = doc(db, "users", user.uid);
+        await setDoc(
+          userRef,
+          {
+            isPro: true,
+            planTier: tier,
+            proActivatedAt: new Date().toISOString(),
+            paymentReference: ref || "",
+            usageCount: 0,
+          },
+          { merge: true }
+        );
+      } catch (fsErr) {
+        console.warn("Firestore update error during plan activation:", fsErr);
+      }
+    }
+  };
+
   const logout = async () => {
     await signOut(auth);
     setUser(null);
@@ -343,6 +418,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         isPro,
         isInfinite,
+        planTier,
+        maxDurationMinutes,
         usageCount,
         remainingFreeUses,
         canTranscribe,
@@ -350,6 +427,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsAuthModalOpen,
         isPricingModalOpen,
         setIsPricingModalOpen,
+        pricingModalNotice,
+        setPricingModalNotice,
         signInWithGoogle,
         signInWithApple,
         signInWithEmail,
@@ -357,6 +436,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         recordTranscriptionSuccess,
         refreshUserData,
+        activateProPlan,
         lastAuthProvider,
         transcriptionHistory,
         deleteTranscriptionItem,

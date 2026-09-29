@@ -39,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-full flex flex-col relative text-gray-900 dark:text-gray-100 bg-white dark:bg-[#09090b] transition-colors">
         <Script src="https://js.paystack.co/v1/inline.js" strategy="lazyOnload" />
+        <Script src="https://checkout.flutterwave.com/v3.js" strategy="lazyOnload" />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
             <Navbar />

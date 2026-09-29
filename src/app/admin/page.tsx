@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useAuth } from "@/context/auth-context";
-import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { useAuth, PlanTier } from "@/context/auth-context";
+import { collection, getDocs, query, limit, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   Users,
@@ -15,16 +15,19 @@ import {
   Crown,
   Search,
   RefreshCw,
-  Calendar,
   CheckCircle2,
   Clock,
   Zap,
+  Copy,
+  Check,
+  CreditCard,
+  SlidersHorizontal,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
 const ADMIN_EMAIL = "belloimam431@gmail.com";
-const PRICE_PER_PRO_NGN = 2000;
 
 interface UserRecord {
   id: string;
@@ -32,9 +35,11 @@ interface UserRecord {
   displayName?: string;
   usageCount: number;
   isPro: boolean;
+  planTier?: PlanTier;
   createdAt?: string;
   lastUsedAt?: string;
   paymentReference?: string;
+  proActivatedAt?: string;
 }
 
 export default function AdminDashboard() {
@@ -42,7 +47,15 @@ export default function AdminDashboard() {
   const [usersList, setUsersList] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "pro" | "free">("all");
+  const [filter, setFilter] = useState<"all" | "business" | "creator" | "free">("all");
+  const [copiedRef, setCopiedRef] = useState<string | null>(null);
+  const [modifyingUser, setModifyingUser] = useState<string | null>(null);
+
+  // Integrated Testing & Verification state
+  const [testReference, setTestReference] = useState("");
+  const [testEmail, setTestEmail] = useState("");
+  const [testResult, setTestResult] = useState<any>(null);
+  const [testingEndpoint, setTestingEndpoint] = useState(false);
 
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
@@ -69,6 +82,7 @@ export default function AdminDashboard() {
           displayName: user.displayName || "Admin",
           usageCount: 999,
           isPro: true,
+          planTier: "business",
           createdAt: new Date().toISOString(),
         });
       }
@@ -87,6 +101,77 @@ export default function AdminDashboard() {
     }
   }, [isAdmin, user]);
 
+  // Admin tier override / quick grant action
+  const handleUpdateUserPlan = async (targetUserId: string, newTier: PlanTier) => {
+    setModifyingUser(targetUserId);
+    try {
+      const userRef = doc(db, "users", targetUserId);
+      const isNowPro = newTier !== "free";
+      await updateDoc(userRef, {
+        isPro: isNowPro,
+        planTier: newTier,
+        ...(isNowPro ? { proActivatedAt: new Date().toISOString() } : {}),
+      });
+
+      // Update local state
+      setUsersList((prev) =>
+        prev.map((u) =>
+          u.id === targetUserId
+            ? { ...u, isPro: isNowPro, planTier: newTier }
+            : u
+        )
+      );
+    } catch (err) {
+      console.error("Failed to update user plan:", err);
+      alert("Failed to update user plan. Please verify Firestore security rules.");
+    } finally {
+      setModifyingUser(null);
+    }
+  };
+
+  // Run Integrated Payment Verification Test
+  const handleRunIntegratedTest = async () => {
+    if (!testReference.trim()) {
+      alert("Please enter a payment reference to test.");
+      return;
+    }
+
+    setTestingEndpoint(true);
+    setTestResult(null);
+
+    try {
+      const res = await fetch("/api/payment/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reference: testReference.trim(),
+          email: testEmail.trim() || user?.email,
+          uid: user?.uid,
+        }),
+      });
+
+      const data = await res.json();
+      setTestResult({
+        httpStatus: res.status,
+        ok: res.ok,
+        data,
+      });
+
+      if (res.ok && data.success) {
+        // Refresh list to show newly verified tier
+        fetchAnalytics();
+      }
+    } catch (err: any) {
+      setTestResult({
+        httpStatus: 500,
+        ok: false,
+        error: err.message || "Network exception during test",
+      });
+    } finally {
+      setTestingEndpoint(false);
+    }
+  };
+
   // Aggregated Analytics Calculations
   const stats = useMemo(() => {
     const totalUsers = usersList.length;
@@ -94,10 +179,15 @@ export default function AdminDashboard() {
     const payingUsers = usersList.filter(
       (u) => u.isPro && u.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()
     );
+    const businessUsers = payingUsers.filter((u) => u.planTier === "business");
+    const creatorUsers = payingUsers.filter((u) => u.planTier !== "business");
     const freeUsers = usersList.filter(
       (u) => !u.isPro && u.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()
     );
-    const totalRevenueNGN = payingUsers.length * PRICE_PER_PRO_NGN;
+
+    const totalRevenueNGN = payingUsers.reduce((sum, u) => {
+      return sum + (u.planTier === "business" ? 12000 : 5000);
+    }, 0);
     const totalRevenueUSD = (totalRevenueNGN / 1450).toFixed(2); // estimated exchange rate
 
     const totalTranscriptions = usersList.reduce((acc, u) => {
@@ -110,13 +200,16 @@ export default function AdminDashboard() {
       0
     );
 
-    const conversionRate = totalUsers > 1 
-      ? ((payingUsers.length / (totalUsers - 1)) * 100).toFixed(1)
-      : "0";
+    const conversionRate =
+      totalUsers > 1
+        ? ((payingUsers.length / (totalUsers - 1)) * 100).toFixed(1)
+        : "0";
 
     return {
       totalUsers,
       payingUsersCount: payingUsers.length,
+      businessUsersCount: businessUsers.length,
+      creatorUsersCount: creatorUsers.length,
       freeUsersCount: freeUsers.length,
       remainingFreeQuota,
       totalRevenueNGN,
@@ -126,27 +219,35 @@ export default function AdminDashboard() {
     };
   }, [usersList]);
 
-  // Filtered users for table
+  // Filtered users for directory table
   const filteredUsers = useMemo(() => {
     return usersList.filter((u) => {
       const matchesSearch =
         u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (u.displayName && u.displayName.toLowerCase().includes(searchQuery.toLowerCase()));
+        (u.displayName && u.displayName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (u.paymentReference && u.paymentReference.toLowerCase().includes(searchQuery.toLowerCase()));
 
       if (!matchesSearch) return false;
 
-      if (filter === "pro") return u.isPro;
+      if (filter === "business") return u.isPro && u.planTier === "business";
+      if (filter === "creator") return u.isPro && u.planTier !== "business";
       if (filter === "free") return !u.isPro;
       return true;
     });
   }, [usersList, searchQuery, filter]);
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedRef(text);
+    setTimeout(() => setCopiedRef(null), 2000);
+  };
+
   // If not admin or not logged in
   if (!authLoading && !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-md w-full p-8 rounded-3xl bg-white dark:bg-[#121214] border border-red-500/20 shadow-2xl text-center">
-          <div className="w-16 h-16 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mx-auto mb-4">
+        <div className="max-w-md w-full p-8 rounded-xl bg-white dark:bg-[#121214] border border-dashed border-red-500/30 shadow-2xl text-center">
+          <div className="w-16 h-16 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center mx-auto mb-4 border border-dashed border-red-500/30">
             <ShieldAlert className="w-8 h-8" />
           </div>
           <h2 className="text-2xl font-bold text-gray-950 dark:text-white mb-2">
@@ -158,13 +259,13 @@ export default function AdminDashboard() {
           <div className="flex flex-col gap-3">
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="w-full py-3 px-4 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-semibold text-sm transition-all shadow-md shadow-orange-600/30 cursor-pointer"
+              className="w-full py-3 px-4 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold text-sm transition-all shadow-md shadow-orange-600/30 cursor-pointer"
             >
               Sign In with Admin Account
             </button>
             <Link
               href="/"
-              className="w-full py-3 px-4 rounded-xl border border-gray-300 dark:border-white/10 text-gray-800 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 font-medium text-sm transition-all cursor-pointer inline-flex items-center justify-center gap-2"
+              className="w-full py-3 px-4 rounded-lg border border-dashed border-gray-300 dark:border-white/10 text-gray-800 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 font-medium text-sm transition-all cursor-pointer inline-flex items-center justify-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Home
@@ -183,28 +284,28 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3">
             <Link
               href="/"
-              className="p-2 rounded-xl bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-lg bg-white dark:bg-white/5 border border-dashed border-gray-300 dark:border-white/15 text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
               title="Return to Home"
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-900 dark:text-amber-400 border border-amber-500/30">
-              <Crown className="w-3.5 h-3.5" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-900 dark:text-amber-400 border border-dashed border-amber-500/40">
+              <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
               Owner Portal
             </span>
           </div>
           <h1 className="text-3xl font-extrabold text-gray-950 dark:text-white mt-2 tracking-tight">
-            VoiceScribe Platform Analytics
+            VoiceScribe Platform Analytics &amp; Billing
           </h1>
           <p className="text-sm text-gray-700 dark:text-gray-400 mt-1">
-            Real-time tracking of site traffic, paying customers, and revenue generated via Paystack.
+            Real-time tracking of subscribers, Creator (₦5k) vs Business (₦12k) revenue, and payment references.
           </p>
         </div>
 
         <button
           onClick={fetchAnalytics}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs sm:text-sm font-semibold transition-all shadow-md shadow-orange-600/20 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs sm:text-sm font-semibold transition-all shadow-md shadow-orange-600/20 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           Refresh Data
@@ -217,13 +318,13 @@ export default function AdminDashboard() {
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-6 rounded-2xl bg-white dark:bg-[#121214] border border-orange-500/20 shadow-lg relative overflow-hidden"
+          className="p-6 rounded-xl bg-white dark:bg-[#121214] border border-dashed border-orange-500/30 shadow-lg relative overflow-hidden"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
               Total Revenue Made
             </span>
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-dashed border-emerald-500/30">
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
@@ -237,7 +338,7 @@ export default function AdminDashboard() {
           </div>
           <p className="text-xs text-emerald-800 dark:text-emerald-400 font-semibold mt-2 flex items-center gap-1">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            {stats.payingUsersCount} subscribers @ ₦2,000/mo
+            {stats.businessUsersCount} Business (₦12k) • {stats.creatorUsersCount} Creator (₦5k)
           </p>
         </motion.div>
 
@@ -246,13 +347,13 @@ export default function AdminDashboard() {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="p-6 rounded-2xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-lg"
+          className="p-6 rounded-xl bg-white dark:bg-[#121214] border border-dashed border-gray-300 dark:border-white/15 shadow-lg"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
-              Total Users / Visitors
+              Total Users / Accounts
             </span>
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-dashed border-blue-500/30">
               <Users className="w-5 h-5" />
             </div>
           </div>
@@ -261,11 +362,11 @@ export default function AdminDashboard() {
               {stats.totalUsers}
             </span>
             <span className="text-xs text-gray-600 dark:text-gray-400 font-medium ml-2">
-              accounts
+              registered
             </span>
           </div>
           <p className="text-xs text-gray-700 dark:text-gray-400 font-medium mt-2">
-            Google &amp; Email visitors
+            {stats.payingUsersCount} paying subscribers
           </p>
         </motion.div>
 
@@ -274,13 +375,13 @@ export default function AdminDashboard() {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="p-6 rounded-2xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-lg"
+          className="p-6 rounded-xl bg-white dark:bg-[#121214] border border-dashed border-gray-300 dark:border-white/15 shadow-lg"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
               Free Quota Left
             </span>
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-dashed border-amber-500/30">
               <Zap className="w-5 h-5" />
             </div>
           </div>
@@ -293,7 +394,7 @@ export default function AdminDashboard() {
             </span>
           </div>
           <p className="text-xs text-amber-800 dark:text-amber-400 font-semibold mt-2">
-            {stats.freeUsersCount} free users (2 allowed each)
+            {stats.freeUsersCount} free users (2 slots each)
           </p>
         </motion.div>
 
@@ -302,13 +403,13 @@ export default function AdminDashboard() {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="p-6 rounded-2xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-lg"
+          className="p-6 rounded-xl bg-white dark:bg-[#121214] border border-dashed border-gray-300 dark:border-white/15 shadow-lg"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
               Transcriptions Run
             </span>
-            <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center border border-dashed border-orange-500/30">
               <Mic className="w-5 h-5" />
             </div>
           </div>
@@ -321,7 +422,7 @@ export default function AdminDashboard() {
             </span>
           </div>
           <p className="text-xs text-gray-700 dark:text-gray-400 font-medium mt-2 flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5" /> ~2.5s avg Whisper speed
+            <Clock className="w-3.5 h-3.5" /> ~2.5s avg VoiceScribe AI speed
           </p>
         </motion.div>
 
@@ -330,13 +431,13 @@ export default function AdminDashboard() {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="p-6 rounded-2xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-lg"
+          className="p-6 rounded-xl bg-white dark:bg-[#121214] border border-dashed border-gray-300 dark:border-white/15 shadow-lg"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
               Pro Conversion
             </span>
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center border border-dashed border-purple-500/30">
               <TrendingUp className="w-5 h-5" />
             </div>
           </div>
@@ -346,20 +447,99 @@ export default function AdminDashboard() {
             </span>
           </div>
           <p className="text-xs text-purple-800 dark:text-purple-400 font-semibold mt-2">
-            Paying ₦2,000/month
+            Creator ₦5k / Business ₦12k
           </p>
         </motion.div>
       </div>
 
+      {/* Integrated Testing & Verification Panel */}
+      <div className="mb-8 p-6 rounded-xl bg-white dark:bg-[#121214] border border-dashed border-orange-500/35 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-orange-500/15 text-orange-600 dark:text-orange-400 flex items-center justify-center border border-dashed border-orange-500/30">
+              <CreditCard className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-950 dark:text-white">
+                Integrated Payment Verification &amp; Tier Sandbox
+              </h2>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                Validate live Paystack transactions or test tier resolution directly against the API endpoint.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+              Paystack Reference
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. vs_business_1720000000_12345"
+              value={testReference}
+              onChange={(e) => setTestReference(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-lg bg-gray-50 dark:bg-white/5 border border-dashed border-gray-300 dark:border-white/15 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+              User Email (Optional)
+            </label>
+            <input
+              type="email"
+              placeholder={user?.email || "customer@example.com"}
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-lg bg-gray-50 dark:bg-white/5 border border-dashed border-gray-300 dark:border-white/15 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={handleRunIntegratedTest}
+              disabled={testingEndpoint}
+              className="w-full py-2 px-4 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition-all shadow-md shadow-orange-600/20 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {testingEndpoint ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Verifying...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Test Paystack Verification
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {testResult && (
+          <div className="mt-4 p-3 rounded-lg bg-gray-50 dark:bg-black/40 border border-dashed border-gray-300 dark:border-white/15 text-xs">
+            <div className="flex items-center justify-between mb-1.5 font-bold">
+              <span className={testResult.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+                Status: {testResult.httpStatus} {testResult.ok ? "SUCCESS" : "FAILED"}
+              </span>
+              <span className="text-gray-500 font-mono text-[11px]">
+                Plan: {testResult.data?.planTier || "N/A"}
+              </span>
+            </div>
+            <pre className="text-[11px] font-mono text-gray-800 dark:text-gray-300 overflow-x-auto whitespace-pre-wrap">
+              {JSON.stringify(testResult, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+
       {/* User Directory Table Section */}
-      <div className="p-6 rounded-3xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-xl">
+      <div className="p-6 rounded-xl bg-white dark:bg-[#121214] border border-dashed border-gray-300 dark:border-white/15 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h2 className="text-xl font-bold text-gray-950 dark:text-white">
-              Users &amp; Customers Directory
+              Users &amp; Subscribers Directory
             </h2>
             <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 font-medium">
-              List of people who have accessed VoiceScribe and their subscription state.
+              Real-time billing status, Paystack reference codes, and plan tier controls.
             </p>
           </div>
 
@@ -369,17 +549,17 @@ export default function AdminDashboard() {
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
               <input
                 type="text"
-                placeholder="Search user email..."
+                placeholder="Search email or reference..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 rounded-xl text-xs bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 w-48 sm:w-60 font-medium"
+                className="pl-9 pr-4 py-2 rounded-lg text-xs bg-gray-50 dark:bg-white/5 border border-dashed border-gray-300 dark:border-white/15 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500 w-52 sm:w-64 font-medium"
               />
             </div>
 
-            <div className="flex rounded-xl bg-gray-100 dark:bg-white/5 p-1 border border-gray-200 dark:border-white/10">
+            <div className="flex flex-wrap rounded-lg bg-gray-100 dark:bg-white/5 p-1 border border-dashed border-gray-300 dark:border-white/15 text-xs">
               <button
                 onClick={() => setFilter("all")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-md font-semibold transition-all cursor-pointer ${
                   filter === "all"
                     ? "bg-orange-600 text-white shadow-sm"
                     : "text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white"
@@ -388,24 +568,34 @@ export default function AdminDashboard() {
                 All ({usersList.length})
               </button>
               <button
-                onClick={() => setFilter("pro")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  filter === "pro"
+                onClick={() => setFilter("business")}
+                className={`px-3 py-1.5 rounded-md font-semibold transition-all cursor-pointer ${
+                  filter === "business"
                     ? "bg-orange-600 text-white shadow-sm"
                     : "text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white"
                 }`}
               >
-                Paid Pro ({usersList.filter((u) => u.isPro).length})
+                Business ({stats.businessUsersCount})
+              </button>
+              <button
+                onClick={() => setFilter("creator")}
+                className={`px-3 py-1.5 rounded-md font-semibold transition-all cursor-pointer ${
+                  filter === "creator"
+                    ? "bg-orange-600 text-white shadow-sm"
+                    : "text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white"
+                }`}
+              >
+                Creator ({stats.creatorUsersCount})
               </button>
               <button
                 onClick={() => setFilter("free")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-md font-semibold transition-all cursor-pointer ${
                   filter === "free"
                     ? "bg-orange-600 text-white shadow-sm"
                     : "text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white"
                 }`}
               >
-                Free ({usersList.filter((u) => !u.isPro).length})
+                Free ({stats.freeUsersCount})
               </button>
             </div>
           </div>
@@ -415,16 +605,16 @@ export default function AdminDashboard() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-white/10 text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
+              <tr className="border-b border-dashed border-gray-200 dark:border-white/10 text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">
                 <th className="py-3 px-4">User</th>
-                <th className="py-3 px-4">Plan Status</th>
+                <th className="py-3 px-4">Plan Tier</th>
+                <th className="py-3 px-4">Payment Reference</th>
                 <th className="py-3 px-4">Transcriptions</th>
-                <th className="py-3 px-4">Quota Left</th>
-                <th className="py-3 px-4">Revenue Contributed</th>
-                <th className="py-3 px-4">Joined Date</th>
+                <th className="py-3 px-4">Revenue</th>
+                <th className="py-3 px-4">Manage Plan</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-white/5 text-sm">
+            <tbody className="divide-y divide-dashed divide-gray-100 dark:divide-white/5 text-sm">
               {filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-gray-500 text-xs">
@@ -434,13 +624,15 @@ export default function AdminDashboard() {
               ) : (
                 filteredUsers.map((u) => {
                   const isOwner = u.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+                  const isBusiness = u.isPro && u.planTier === "business";
+                  const isCreator = u.isPro && u.planTier !== "business";
                   const remainingQuota = Math.max(0, 2 - (u.usageCount || 0));
 
                   return (
                     <tr key={u.id} className="hover:bg-gray-50/80 dark:hover:bg-white/5 transition-colors">
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-orange-500/15 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold text-xs">
+                          <div className="w-8 h-8 rounded-lg bg-orange-500/15 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold text-xs border border-dashed border-orange-500/30">
                             {u.email?.[0].toUpperCase() || "U"}
                           </div>
                           <div>
@@ -456,17 +648,45 @@ export default function AdminDashboard() {
 
                       <td className="py-3.5 px-4">
                         {isOwner ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-900 dark:text-amber-400 border border-amber-500/30">
-                            <Crown className="w-3 h-3" /> Admin / VIP
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-900 dark:text-amber-400 border border-dashed border-amber-500/40">
+                            <Crown className="w-3 h-3 text-amber-600 dark:text-amber-400" /> Admin / VIP (180m)
                           </span>
-                        ) : u.isPro ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-900 dark:text-emerald-400 border border-emerald-500/30">
-                            <Sparkles className="w-3 h-3" /> Pro Member
+                        ) : isBusiness ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-900 dark:text-emerald-400 border border-dashed border-emerald-500/40">
+                            <Sparkles className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Business Pro (90m)
+                          </span>
+                        ) : isCreator ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-blue-500/15 text-blue-900 dark:text-blue-400 border border-dashed border-blue-500/40">
+                            <Sparkles className="w-3 h-3 text-blue-600 dark:text-blue-400" /> Creator Pro (20m)
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-300">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-300 border border-dashed border-gray-300 dark:border-white/15">
                             Free Tier ({u.usageCount || 0}/2 used)
                           </span>
+                        )}
+                      </td>
+
+                      {/* Payment Reference */}
+                      <td className="py-3.5 px-4">
+                        {u.paymentReference ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-mono bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded border border-dashed border-gray-300 dark:border-white/10 text-gray-800 dark:text-gray-300 max-w-[130px] truncate">
+                              {u.paymentReference}
+                            </span>
+                            <button
+                              onClick={() => copyToClipboard(u.paymentReference!)}
+                              className="p-1 rounded hover:bg-gray-200 dark:hover:bg-white/10 text-gray-500 cursor-pointer"
+                              title="Copy Reference"
+                            >
+                              {copiedRef === u.paymentReference ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-500" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 font-medium">None</span>
                         )}
                       </td>
 
@@ -474,32 +694,42 @@ export default function AdminDashboard() {
                         {isOwner ? "Unlimited" : `${u.usageCount || 0} files`}
                       </td>
 
+                      <td className="py-3.5 px-4 font-bold text-gray-950 dark:text-white">
+                        {isOwner ? "Owner (Free)" : isBusiness ? "₦12,000 NGN" : isCreator ? "₦5,000 NGN" : "₦0"}
+                      </td>
+
+                      {/* Manage Plan / Action */}
                       <td className="py-3.5 px-4">
                         {isOwner ? (
-                          <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
-                            Infinite (Owner)
-                          </span>
-                        ) : u.isPro ? (
-                          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                            Unlimited (Pro)
-                          </span>
-                        ) : remainingQuota > 0 ? (
-                          <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                            {remainingQuota} / 2 left
-                          </span>
+                          <span className="text-xs text-amber-600 font-semibold">Protected</span>
                         ) : (
-                          <span className="text-xs font-semibold text-red-600 dark:text-red-400">
-                            0 left (Limit reached)
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              disabled={modifyingUser === u.id || isBusiness}
+                              onClick={() => handleUpdateUserPlan(u.id, "business")}
+                              className="px-2 py-1 rounded text-[11px] font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-800 dark:text-emerald-400 border border-dashed border-emerald-500/40 cursor-pointer disabled:opacity-40"
+                              title="Set to Business Plan (₦12,000/90m)"
+                            >
+                              +Business
+                            </button>
+                            <button
+                              disabled={modifyingUser === u.id || isCreator}
+                              onClick={() => handleUpdateUserPlan(u.id, "creator")}
+                              className="px-2 py-1 rounded text-[11px] font-semibold bg-blue-500/15 hover:bg-blue-500/25 text-blue-800 dark:text-blue-400 border border-dashed border-blue-500/40 cursor-pointer disabled:opacity-40"
+                              title="Set to Creator Plan (₦5,000/20m)"
+                            >
+                              +Creator
+                            </button>
+                            <button
+                              disabled={modifyingUser === u.id || (!isBusiness && !isCreator)}
+                              onClick={() => handleUpdateUserPlan(u.id, "free")}
+                              className="px-2 py-1 rounded text-[11px] font-semibold bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 border border-dashed border-red-500/30 cursor-pointer disabled:opacity-40"
+                              title="Reset to Free Tier"
+                            >
+                              Revoke
+                            </button>
+                          </div>
                         )}
-                      </td>
-
-                      <td className="py-3.5 px-4 font-bold text-gray-950 dark:text-white">
-                        {isOwner ? "—" : u.isPro ? "₦2,000 NGN" : "₦0"}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-xs text-gray-600 dark:text-gray-400 font-medium">
-                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "Recent"}
                       </td>
                     </tr>
                   );

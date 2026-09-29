@@ -41,7 +41,7 @@ export default function AboutPage() {
         <div className="absolute inset-0 bg-[url('/noise.png')] opacity-10 mix-blend-overlay pointer-events-none"></div>
         <div className="relative z-10 text-center px-4">
           <Mic className="w-16 h-16 text-orange-500 mx-auto mb-4" />
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">Powered by Groq Whisper</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">Powered by VoiceScribe Neural Speech Engine</h2>
           <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300 max-w-md mx-auto">
             Experience lightning-fast transcription using state-of-the-art AI models, processing hours of audio in just seconds.
           </p>
@@ -54,14 +54,14 @@ export default function AboutPage() {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
-          className="p-8 rounded-3xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-xl"
+          className="p-8 rounded-xl bg-white dark:bg-[#121214] border border-dashed border-gray-200 dark:border-white/10 shadow-xl"
         >
-          <div className="w-12 h-12 rounded-2xl bg-orange-500/15 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-6">
+          <div className="w-12 h-12 rounded-xl bg-orange-500/15 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-6 border border-dashed border-orange-500/30">
             <Zap className="w-6 h-6 fill-current" />
           </div>
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Blazing Fast Speed</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed font-medium">
-            By leveraging Groq&apos;s LPU architecture, VoiceScribe achieves transcription speeds that are orders of magnitude faster than traditional GPU-based solutions. Get your transcripts almost instantly.
+            By leveraging VoiceScribe&apos;s proprietary neural acceleration engine, VoiceScribe achieves transcription speeds that are orders of magnitude faster than traditional solutions. Get your transcripts almost instantly.
           </p>
         </motion.div>
 
@@ -69,9 +69,9 @@ export default function AboutPage() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.2 }}
-          className="p-8 rounded-3xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-xl"
+          className="p-8 rounded-xl bg-white dark:bg-[#121214] border border-dashed border-gray-200 dark:border-white/10 shadow-xl"
         >
-          <div className="w-12 h-12 rounded-2xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-6">
+          <div className="w-12 h-12 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-6 border border-dashed border-blue-500/30">
             <Globe className="w-6 h-6" />
           </div>
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Translation & Video Support</h3>
@@ -84,9 +84,9 @@ export default function AboutPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="p-8 rounded-3xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 shadow-xl"
+          className="p-8 rounded-xl bg-white dark:bg-[#121214] border border-dashed border-gray-200 dark:border-white/10 shadow-xl"
         >
-          <div className="w-12 h-12 rounded-2xl bg-green-500/15 text-green-600 dark:text-green-400 flex items-center justify-center mb-6">
+          <div className="w-12 h-12 rounded-xl bg-green-500/15 text-green-600 dark:text-green-400 flex items-center justify-center mb-6 border border-dashed border-green-500/30">
             <Shield className="w-6 h-6" />
           </div>
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Secure & Private</h3>
@@ -97,10 +97,10 @@ export default function AboutPage() {
       </div>
 
       {/* CTA Section */}
-      <div className="text-center bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-3xl p-8 sm:p-12 shadow-inner">
+      <div className="text-center bg-gray-50 dark:bg-white/5 border border-dashed border-gray-200 dark:border-white/10 rounded-xl p-8 sm:p-12 shadow-inner">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Ready to start transcribing?</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-md mx-auto font-medium">
-          Try it out for free and experience the speed of Groq Whisper yourself.
+          Try it out for free and experience the speed of VoiceScribe AI yourself.
         </p>
         <Link
           href="/"

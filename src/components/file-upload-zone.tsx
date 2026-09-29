@@ -1,32 +1,43 @@
 "use client";
 
 import { useCallback, useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   UploadCloud,
   FileAudio,
+  FileVideo,
   X,
   Mic,
   Square,
-  RotateCcw,
   Volume2,
-  Radio,
+  Clock,
   Sparkles,
+  AlertTriangle,
+  ArrowUpRight,
 } from "lucide-react";
-
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
+import { getMediaDuration, formatDuration } from "@/lib/media-processor";
+import { useAuth } from "@/context/auth-context";
 
 interface FileUploadZoneProps {
-  onFileSelect: (file: File | null) => void;
+  onFileSelect: (file: File | null, duration?: number) => void;
   isLoading: boolean;
+  selectedDuration?: number | null;
 }
 
-export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZoneProps) {
+export default function FileUploadZone({
+  onFileSelect,
+  isLoading,
+  selectedDuration,
+}: FileUploadZoneProps) {
+  const { maxDurationMinutes, planTier, setIsPricingModalOpen, setPricingModalNotice, isInfinite } =
+    useAuth();
+
   const [activeTab, setActiveTab] = useState<"upload" | "record">("upload");
   const [isDragActive, setIsDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [duration, setDuration] = useState<number>(0);
+  const [isDetectingDuration, setIsDetectingDuration] = useState(false);
 
   // Recording State
   const [isRecording, setIsRecording] = useState(false);
@@ -37,32 +48,6 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-
-  // FFmpeg State
-  const [isExtracting, setIsExtracting] = useState(false);
-  const ffmpegRef = useRef<any>(null);
-  const extractionLogRef = useRef<HTMLParagraphElement>(null);
-
-  const loadFFmpeg = async () => {
-    if (!ffmpegRef.current) {
-      ffmpegRef.current = new FFmpeg();
-    }
-    
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    const ffmpeg = ffmpegRef.current;
-    
-    if (!ffmpeg.loaded) {
-      ffmpeg.on('log', ({ message }: { message: string }) => {
-        if (extractionLogRef.current) {
-          extractionLogRef.current.innerText = message;
-        }
-      });
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-      });
-    }
-  };
 
   // Clean up object URLs and recording streams
   useEffect(() => {
@@ -91,8 +76,7 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
     setIsDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      handleFile(file);
+      handleFile(e.dataTransfer.files[0]);
     }
   }, []);
 
@@ -104,38 +88,32 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
   };
 
   const handleFile = async (file: File) => {
-    if (file.type.startsWith("video/")) {
-      setIsExtracting(true);
-      try {
-        await loadFFmpeg();
-        const ffmpeg = ffmpegRef.current;
-        await ffmpeg.writeFile(file.name, await fetchFile(file));
-        const outName = 'output.mp3';
-        
-        await ffmpeg.exec(['-i', file.name, '-vn', '-c:a', 'libmp3lame', '-b:a', '128k', outName]);
-        const data = await ffmpeg.readFile(outName);
-        const audioBlob = new Blob([data], { type: 'audio/mpeg' });
-        const audioFile = new File([audioBlob], file.name.replace(/\.[^/.]+$/, "") + ".mp3", { type: "audio/mpeg" });
-        
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        const url = URL.createObjectURL(audioFile);
+    const isAudio = file.type.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|aac|flac|opus)$/i.test(file.name);
+    const isVideo = file.type.startsWith("video/") || /\.(mp4|mkv|mov|avi|webm|flv|wmv|m4v|3gp)$/i.test(file.name);
+
+    if (!isAudio && !isVideo) {
+      alert("Please upload an audio or video file (MP3, WAV, MP4, MKV, etc.).");
+      return;
+    }
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+    setIsDetectingDuration(true);
+    try {
+      const detectedDuration = await getMediaDuration(file);
+      setDuration(detectedDuration);
+
+      if (isAudio) {
+        const url = URL.createObjectURL(file);
         setPreviewUrl(url);
-        setSelectedFile(audioFile);
-        onFileSelect(audioFile);
-      } catch (err) {
-        console.error("FFmpeg error:", err);
-        alert("Failed to extract audio from video.");
-      } finally {
-        setIsExtracting(false);
+      } else {
+        setPreviewUrl(null);
       }
-    } else if (file.type.startsWith("audio/")) {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
+
       setSelectedFile(file);
-      onFileSelect(file);
-    } else {
-      alert("Please upload an audio or video file.");
+      onFileSelect(file, detectedDuration);
+    } finally {
+      setIsDetectingDuration(false);
     }
   };
 
@@ -143,7 +121,8 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setSelectedFile(null);
-    onFileSelect(null);
+    setDuration(0);
+    onFileSelect(null, 0);
   };
 
   // --- Microphone Recording Functions ---
@@ -159,7 +138,6 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Select supported audio mime type
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
@@ -178,7 +156,7 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         const ext = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
         const file = new File([audioBlob], `voice_recording_${Date.now()}.${ext}`, {
@@ -188,20 +166,21 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
         const url = URL.createObjectURL(audioBlob);
         setPreviewUrl(url);
         setSelectedFile(file);
-        onFileSelect(file);
 
-        // Stop stream tracks
+        const dur = recordDuration || (await getMediaDuration(file));
+        setDuration(dur);
+        onFileSelect(file, dur);
+
         if (streamRef.current) {
           streamRef.current.getTracks().forEach((track) => track.stop());
           streamRef.current = null;
         }
       };
 
-      mediaRecorder.start(250); // Slice every 250ms
+      mediaRecorder.start(250);
       setIsRecording(true);
       setRecordDuration(0);
 
-      // Start duration counter
       timerRef.current = setInterval(() => {
         setRecordDuration((prev) => prev + 1);
       }, 1000);
@@ -233,26 +212,49 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const isVideo = selectedFile
+    ? selectedFile.type.startsWith("video/") ||
+      /\.(mp4|mkv|mov|avi|webm|flv|wmv|m4v)$/i.test(selectedFile.name)
+    : false;
+
+  const currentDuration = selectedDuration || duration;
+  const isOverDurationLimit =
+    !isInfinite && currentDuration > 0 && currentDuration > maxDurationMinutes * 60;
+
+  const handleUpgradePrompt = () => {
+    const formatted = formatDuration(currentDuration);
+    if (currentDuration > 20 * 60) {
+      setPricingModalNotice(
+        `Your file is ${formatted} long. Upgrade to the Business Plan (up to 90 mins) to transcribe it.`
+      );
+    } else {
+      setPricingModalNotice(
+        `Your file is ${formatted} long. Upgrade to Creator (20 mins) or Business (90 mins) to transcribe it.`
+      );
+    }
+    setIsPricingModalOpen(true);
+  };
+
   return (
     <div className="w-full max-w-2xl mx-auto">
       {/* Mode Switch Tabs */}
       {!selectedFile && !isRecording && (
         <div className="flex items-center justify-center mb-6">
-          <div className="inline-flex p-1 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 shadow-sm">
+          <div className="inline-flex p-1 rounded-xl bg-gray-100 dark:bg-white/5 border border-dashed border-gray-300 dark:border-white/15 shadow-sm">
             <button
               onClick={() => setActiveTab("upload")}
-              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === "upload"
                   ? "bg-orange-600 text-white shadow-md shadow-orange-600/20"
                   : "text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white"
               }`}
             >
               <UploadCloud className="w-4 h-4" />
-              Upload Audio File
+              Upload Audio / Video File
             </button>
             <button
               onClick={() => setActiveTab("record")}
-              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === "record"
                   ? "bg-orange-600 text-white shadow-md shadow-orange-600/20"
                   : "text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white"
@@ -265,25 +267,41 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
         </div>
       )}
 
-      {/* Selected / Recorded File Card with Audio Player */}
+      {/* Selected File Card */}
       {selectedFile ? (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-panel p-6 rounded-3xl border border-gray-200 dark:border-white/10 shadow-xl bg-white/90 dark:bg-[#121214]/90"
+          className="glass-panel p-6 rounded-xl border border-dashed border-gray-300 dark:border-white/20 shadow-xl bg-white/90 dark:bg-[#121214]/90"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="bg-orange-500/15 p-3.5 rounded-2xl text-orange-600 dark:text-orange-400">
-                <FileAudio className="w-8 h-8" />
+              <div className="bg-orange-500/15 p-3 rounded-xl border border-dashed border-orange-500/30 text-orange-600 dark:text-orange-400 flex-shrink-0">
+                {isVideo ? <FileVideo className="w-8 h-8" /> : <FileAudio className="w-8 h-8" />}
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-gray-950 dark:text-white font-bold text-base truncate max-w-[220px] sm:max-w-[340px]">
                   {selectedFile.name}
                 </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium mt-0.5">
-                  {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB &bull; Audio Ready
-                </p>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400 font-medium mt-1">
+                  <span>{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                  <span>&bull;</span>
+                  <span className="capitalize">{isVideo ? "Video Track" : "Audio"}</span>
+                  {currentDuration > 0 && (
+                    <>
+                      <span>&bull;</span>
+                      <span className="inline-flex items-center gap-1 font-semibold text-orange-600 dark:text-orange-400">
+                        <Clock className="w-3.5 h-3.5" />
+                        {formatDuration(currentDuration)}
+                      </span>
+                    </>
+                  )}
+                  {isDetectingDuration && (
+                    <span className="text-[11px] text-gray-400 animate-pulse">
+                      Analyzing length...
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -298,37 +316,64 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
             )}
           </div>
 
-          {/* Integrated HTML5 Audio Player Preview */}
-          {previewUrl && (
-            <div className="mt-5 pt-4 border-t border-gray-200 dark:border-white/10">
+          {/* Over Duration Limit Warning */}
+          {/* Over Duration Limit Warning */}
+          {isOverDurationLimit && (
+            <div className="mt-4 p-3.5 rounded-xl bg-amber-500/10 border border-dashed border-amber-500/35 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">
+                    File exceeds your {planTier === "free" ? "Free" : "Creator"} limit (
+                    {maxDurationMinutes}m max).
+                  </p>
+                  <p className="text-[11px] opacity-80 mt-0.5">
+                    File length: <strong>{formatDuration(currentDuration)}</strong>. Upgrade to{" "}
+                    {currentDuration > 20 * 60 ? "Business (up to 90m)" : "Creator / Business"} to
+                    transcribe.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleUpgradePrompt}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs transition-colors cursor-pointer whitespace-nowrap shadow-sm shadow-orange-600/30"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Upgrade Plan
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Audio Player Preview */}
+          {previewUrl && !isOverDurationLimit && (
+            <div className="mt-4 pt-4 border-t border-dashed border-gray-200 dark:border-white/10">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                   <Volume2 className="w-4 h-4 text-orange-500" />
                   Listen to Audio Preview
                 </span>
-                <span className="text-[11px] text-gray-500 font-medium">
-                  Playback controls
-                </span>
+                <span className="text-[11px] text-gray-500 font-medium">Playback preview</span>
               </div>
               <audio
                 controls
                 src={previewUrl}
-                className="w-full h-10 rounded-xl focus:outline-none"
+                className="w-full h-10 rounded-lg focus:outline-none"
                 preload="metadata"
               />
             </div>
           )}
         </motion.div>
       ) : activeTab === "record" || isRecording ? (
-        /* --- Live Microphone Recording Interface --- */
+        /* --- Microphone Recording Interface --- */
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="p-8 sm:p-10 glass-panel rounded-3xl border border-gray-200 dark:border-white/15 text-center flex flex-col items-center justify-center relative overflow-hidden"
+          className="p-8 sm:p-10 glass-panel rounded-xl border border-dashed border-gray-300 dark:border-white/15 text-center flex flex-col items-center justify-center relative overflow-hidden"
         >
           {isRecording ? (
             <div className="flex flex-col items-center">
-              {/* Pulsing Recording Visualizer */}
               <div className="relative mb-6">
                 <span className="absolute -inset-4 rounded-full bg-red-500/20 animate-ping" />
                 <span className="absolute -inset-8 rounded-full bg-red-500/10 animate-pulse" />
@@ -337,7 +382,7 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
                 </div>
               </div>
 
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-red-500/15 text-red-700 dark:text-red-400 font-bold text-xs mb-2 border border-red-500/30">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-lg bg-red-500/15 text-red-700 dark:text-red-400 font-bold text-xs mb-2 border border-dashed border-red-500/35">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
                 RECORDING LIVE
               </div>
@@ -352,7 +397,7 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
 
               <button
                 onClick={stopRecording}
-                className="flex items-center gap-2.5 px-8 py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-all shadow-lg shadow-red-600/30 cursor-pointer"
+                className="flex items-center gap-2.5 px-8 py-3.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-all shadow-lg shadow-red-600/30 cursor-pointer"
               >
                 <Square className="w-4 h-4 fill-current" />
                 Stop Recording
@@ -360,31 +405,27 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
             </div>
           ) : (
             <div className="flex flex-col items-center">
-              <button
-                onClick={startRecording}
-                className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-orange-600 to-amber-500 text-white flex items-center justify-center shadow-xl shadow-orange-500/30 hover:scale-105 transition-transform cursor-pointer mb-6"
-                title="Click to start recording"
-              >
-                <Mic className="w-9 h-9" />
-              </button>
-
-              <h3 className="text-xl font-bold text-gray-950 dark:text-white mb-1.5">
-                Record Voice Note
+              <div className="w-16 h-16 rounded-xl bg-orange-500/10 border border-dashed border-orange-500/30 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-4">
+                <Mic className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-950 dark:text-white mb-1">
+                Record Voice Memo
               </h3>
-              <p className="text-xs text-gray-600 dark:text-gray-400 font-medium max-w-sm mb-6">
-                Click the microphone button to record your speech, meeting, or voice note.
+              <p className="text-xs text-gray-600 dark:text-gray-400 max-w-xs mb-6">
+                Capture lectures, voice notes, or interviews directly using your browser microphone.
               </p>
 
               {recordError && (
-                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-medium max-w-md mb-4">
+                <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-dashed border-red-500/30 text-red-500 text-xs font-medium max-w-sm">
                   {recordError}
                 </div>
               )}
 
               <button
                 onClick={startRecording}
-                className="px-6 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold shadow-md shadow-orange-600/20 cursor-pointer transition-all"
+                className="flex items-center gap-2.5 px-7 py-3 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold text-sm transition-all shadow-lg shadow-orange-600/25 cursor-pointer"
               >
+                <Mic className="w-4 h-4" />
                 Start Recording
               </button>
             </div>
@@ -393,49 +434,47 @@ export default function FileUploadZone({ onFileSelect, isLoading }: FileUploadZo
       ) : (
         /* --- Drag and Drop File Upload Area --- */
         <motion.div
-          whileHover={{ scale: 1.005 }}
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
-          className={`relative flex flex-col items-center justify-center p-12 glass-panel rounded-3xl border-2 border-dashed transition-all cursor-pointer overflow-hidden ${
+          className={`relative border-2 border-dashed rounded-xl p-8 sm:p-12 text-center transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden ${
             isDragActive
-              ? "border-orange-500 bg-orange-500/10 shadow-[0_0_30px_rgba(249,115,22,0.2)]"
-              : "border-gray-300 dark:border-white/15 hover:border-orange-500/60"
+              ? "border-orange-500 bg-orange-500/10 scale-[1.01]"
+              : "border-gray-300 dark:border-white/15 hover:border-orange-500/50 bg-white/40 dark:bg-white/[0.02]"
           }`}
         >
-          {isDragActive && (
-            <div className="absolute inset-0 bg-orange-500/5 pointer-events-none" />
-          )}
-
           <input
             type="file"
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            accept="audio/*,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.mp4,.mkv,.mov,.avi,.webm"
             onChange={handleChange}
-            accept="audio/*,video/*"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
           />
 
-          <div className="bg-orange-500/10 dark:bg-white/5 p-4 rounded-full mb-4">
-            {isExtracting ? (
-              <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <UploadCloud
-                className={`w-10 h-10 ${
-                  isDragActive ? "text-orange-500" : "text-orange-600 dark:text-orange-400"
-                }`}
-              />
-            )}
+          <div className="w-16 h-16 rounded-xl bg-gradient-to-tr from-orange-500/20 to-orange-500/5 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-4 shadow-sm border border-dashed border-orange-500/35">
+            <UploadCloud className="w-8 h-8" />
           </div>
 
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-            {isExtracting ? "Extracting audio from video..." : "Click or drag & drop to upload"}
+          <h3 className="text-lg font-bold text-gray-950 dark:text-white mb-1">
+            Choose audio or video file
           </h3>
-          {isExtracting && (
-            <p ref={extractionLogRef} className="text-xs text-orange-600 font-mono mt-1 mb-2 max-w-xs truncate"></p>
-          )}
-          <p className="text-sm text-gray-700 dark:text-gray-300 font-medium text-center max-w-sm">
-            Supported formats: MP3, WAV, MP4, M4A, OGG. Maximum file size: 25MB (unlimited for video uploads as audio is extracted locally).
+          <p className="text-xs text-gray-600 dark:text-gray-400 font-medium mb-3">
+            Drag and drop or browse from your computer
           </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+            <span className="px-2 py-0.5 rounded-md border border-dashed border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 font-semibold">
+              MP3, WAV, M4A
+            </span>
+            <span className="px-2 py-0.5 rounded-md border border-dashed border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/5 font-semibold">
+              MP4, MKV, MOV
+            </span>
+            <span className="px-2 py-0.5 rounded-md border border-dashed border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400 font-semibold">
+              Auto 3-Min Segments
+            </span>
+          </div>
         </motion.div>
       )}
     </div>
