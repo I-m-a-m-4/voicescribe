@@ -39,10 +39,8 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Build Next.js Static Export
-        env:
-          BUILD_TARGET: tauri
-        run: npm run build
+      - name: Build Next.js Static Export for Tauri
+        run: npm run build:tauri
 
       - name: Build Windows MSI & EXE Bundles
         run: npx tauri build --bundles msi,nsis
@@ -85,10 +83,8 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Build Next.js Static Export
-        env:
-          BUILD_TARGET: tauri
-        run: npm run build
+      - name: Build Next.js Static Export for Tauri
+        run: npm run build:tauri
 
       - name: Build macOS DMG & APP Bundles
         run: npx tauri build --bundles dmg,app
@@ -137,10 +133,8 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Build Next.js Static Export
-        env:
-          BUILD_TARGET: tauri
-        run: npm run build
+      - name: Build Next.js Static Export for Tauri
+        run: npm run build:tauri
 
       - name: Build Android APK & AAB
         env:
