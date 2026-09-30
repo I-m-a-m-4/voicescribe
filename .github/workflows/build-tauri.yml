@@ -45,7 +45,72 @@ jobs:
       - name: Build Windows MSI & EXE Bundles
         run: npx tauri build --bundles msi,nsis
 
-      - name: Upload Windows MSI & EXE Artifacts
+      - name: Create MSIX Package (via makeappx)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          # Find application binary recursively
+          $exePath = Get-ChildItem -Path "src-tauri/target" -Recurse -Filter "app.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notlike "*\deps\*" -and $_.FullName -notlike "*\incremental\*" } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $exePath) {
+            $exePath = Get-ChildItem -Path "src-tauri/target" -Recurse -Filter "*.exe" -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -notlike "*\deps\*" -and $_.FullName -notlike "*\incremental\*" -and $_.Name -notlike "build_script_build*" } |
+              Sort-Object Length -Descending |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+
+          if (-not $exePath) {
+            Write-Error "app.exe not found!"
+            exit 1
+          }
+          Write-Host "Found binary: $exePath"
+
+          # Staging layout
+          $pkg = "msix-package"
+          New-Item -ItemType Directory -Force -Path "$pkg/Assets" | Out-Null
+          Copy-Item $exePath "$pkg/VoiceScribe.exe"
+
+          # Copy committed AppxManifest
+          Copy-Item "src-tauri/AppxManifest.xml" "$pkg/AppxManifest.xml"
+
+          # Resize icons using System.Drawing
+          Add-Type -AssemblyName System.Drawing
+          $iconSrc = "src-tauri/icons/128x128.png"
+          function Resize-Icon($src, $dst, $w, $h) {
+            $orig = [System.Drawing.Image]::FromFile((Resolve-Path $src).Path)
+            $bmp  = New-Object System.Drawing.Bitmap($w, $h)
+            $g    = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $g.DrawImage($orig, 0, 0, $w, $h)
+            $g.Dispose(); $orig.Dispose()
+            $bmp.Save((Join-Path (Get-Location).Path $dst), [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+          }
+          Resize-Icon $iconSrc "$pkg/Assets/Square44x44Logo.png"   44  44
+          Resize-Icon $iconSrc "$pkg/Assets/Square150x150Logo.png" 150 150
+          Resize-Icon $iconSrc "$pkg/Assets/Wide310x150Logo.png"   310 150
+          Resize-Icon $iconSrc "$pkg/Assets/StoreLogo.png"          50  50
+          Resize-Icon $iconSrc "$pkg/Assets/SplashScreen.png"      620 300
+
+          # Locate makeappx.exe (Windows SDK, available on windows-latest)
+          $makeappx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "makeappx.exe" |
+            Where-Object { $_.FullName -like "*x64*" } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $makeappx) { Write-Error "makeappx.exe not found"; exit 1 }
+          Write-Host "Using makeappx: $($makeappx.FullName)"
+
+          [xml]$manifestXml = Get-Content "$pkg/AppxManifest.xml"
+          $version = $manifestXml.Package.Identity.Version
+          $displayVersion = ($version -replace '\.0$', '')
+          New-Item -ItemType Directory -Force -Path "msix-output" | Out-Null
+          & $makeappx.FullName pack /d $pkg /p "msix-output/VoiceScribe_${displayVersion}_x64.msix" /nv /o
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "MSIX created successfully: VoiceScribe_${displayVersion}_x64.msix"
+
+      - name: Upload Windows MSI, EXE & MSIX Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: VoiceScribe-Windows-Builds
@@ -54,6 +119,7 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            msix-output/*.msix
           if-no-files-found: warn
 
   build-macos:
@@ -174,12 +240,13 @@ jobs:
             ## VoiceScribe Native Multi-Platform Release
 
             Download official VoiceScribe binaries for your device:
-            - 🖥️ **Windows**: `.msi` (Windows Installer) & `.exe` (NSIS Setup)
+            - 🖥️ **Windows**: `.msix` (Microsoft Store), `.msi` (Windows Installer) & `.exe` (NSIS Setup)
             - 🍏 **macOS**: `.dmg` (Disk Image)
             - 📱 **Android**: `.apk` (Standalone Package) & `.aab` (Google Play Bundle)
           draft: false
           prerelease: false
           files: |
+            ./artifacts/**/*.msix
             ./artifacts/**/*.msi
             ./artifacts/**/*.exe
             ./artifacts/**/*.dmg

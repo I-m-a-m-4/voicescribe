@@ -1,6 +1,6 @@
 {
   "name": "voicescribe",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3005",
@@ -12,6 +12,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "npm run build:tauri && tauri build",
     "tauri:build:msi": "npm run build:tauri && tauri build --target x86_64-pc-windows-msvc",
+    "build:msix": "powershell -ExecutionPolicy Bypass -File scripts/package-msix.ps1",
     "tauri:android:init": "tauri android init",
     "tauri:android:build": "npm run build:tauri && tauri android build --aab"
   },
