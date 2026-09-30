@@ -4,7 +4,7 @@
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap rescap">
-  <Identity Name="Zeneva.VoiceScribeAIAudioVideoTranscriber" Publisher="CN=FB9C471D-AB12-4486-AC75-1AA3579E4073" Version="0.1.1.0" ProcessorArchitecture="x64"/>
+  <Identity Name="Zeneva.VoiceScribeAIAudioVideoTranscriber" Publisher="CN=FB9C471D-AB12-4486-AC75-1AA3579E4073" Version="0.1.2.0" ProcessorArchitecture="x64"/>
   <Properties>
     <DisplayName>VoiceScribe: AI Audio &amp; Video Transcriber</DisplayName>
     <PublisherDisplayName>Bimex</PublisherDisplayName>
