@@ -9,7 +9,7 @@
  * deployment (https://usevoicescribe.vercel.app/api/...) at runtime.
  */
 
-import { rename, access } from "fs/promises";
+import { rename, access, rm } from "fs/promises";
 import { execSync } from "child_process";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -18,6 +18,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const apiDir = join(root, "src", "app", "api");
 const apiDirHidden = join(root, "src", "app", "_api_tauri_backup");
+const nextDir = join(root, ".next");
 
 async function exists(p) {
   try {
@@ -35,6 +36,12 @@ async function main() {
   if (apiExists) {
     console.log("⏸  Temporarily moving src/app/api → src/app/_api_tauri_backup ...");
     await rename(apiDir, apiDirHidden);
+  }
+
+  // Clean stale .next cache to prevent dev-types validator errors
+  if (await exists(nextDir)) {
+    console.log("🧹 Cleaning .next build cache...");
+    await rm(nextDir, { recursive: true, force: true });
   }
 
   try {

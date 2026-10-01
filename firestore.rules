@@ -13,5 +13,16 @@ service cloud.firestore {
         allow read, write, delete: if request.auth != null && request.auth.uid == userId;
       }
     }
+
+    // Temporary desktop authorization handshake sessions
+    match /desktop_auth/{sessionId} {
+      allow get, create, update, delete: if true;
+      allow list: if false;
+    }
+
+    match /desktop_auth_codes/{code} {
+      allow get, create, update, delete: if true;
+      allow list: if false;
+    }
   }
 }

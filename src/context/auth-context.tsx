@@ -6,13 +6,25 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   signInWithRedirect,
+  signInWithCredential,
   getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  GoogleAuthProvider,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, increment } from "firebase/firestore";
 import { auth, db, googleProvider, appleProvider } from "@/lib/firebase";
+
+export const isTauriDesktop = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return (
+    (window as any).__TAURI_INTERNALS__ !== undefined ||
+    (window as any).__TAURI__ !== undefined ||
+    window.location.protocol === "tauri:" ||
+    window.location.origin.includes("tauri.localhost")
+  );
+};
 
 const ADMIN_EMAIL = "belloimam431@gmail.com";
 const FREE_TIER_LIMIT = 2;
@@ -62,6 +74,10 @@ interface AuthContextType {
   lastAuthProvider: string | null;
   transcriptionHistory: TranscriptionItem[];
   deleteTranscriptionItem: (id: string) => void;
+  desktopAuthSession: { sessionId: string; url: string; code: string } | null;
+  cancelDesktopAuth: () => void;
+  signInWithDesktopToken: (token: string) => Promise<void>;
+  isDesktop: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -77,6 +93,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [pricingModalNotice, setPricingModalNotice] = useState<string | null>(null);
   const [lastAuthProvider, setLastAuthProvider] = useState<string | null>(null);
   const [transcriptionHistory, setTranscriptionHistory] = useState<TranscriptionItem[]>([]);
+  const [desktopAuthSession, setDesktopAuthSession] = useState<{
+    sessionId: string;
+    url: string;
+    code: string;
+  } | null>(null);
+  const [desktopAuthUnsub, setDesktopAuthUnsub] = useState<(() => void) | null>(null);
 
   // Check if current user is the VIP admin
   const isInfinite = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
@@ -289,7 +311,107 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const cancelDesktopAuth = useCallback(() => {
+    if (desktopAuthUnsub) {
+      desktopAuthUnsub();
+      setDesktopAuthUnsub(null);
+    }
+    setDesktopAuthSession(null);
+  }, [desktopAuthUnsub]);
+
+  const signInWithDesktopToken = async (idToken: string) => {
+    try {
+      const googleCredential = GoogleAuthProvider.credential(idToken);
+      const res = await signInWithCredential(auth, googleCredential);
+      if (res.user) {
+        localStorage.setItem("voicescribe_last_auth_provider", "google");
+        setLastAuthProvider("google");
+        await fetchUserData(res.user);
+        loadHistory(res.user.uid);
+        cancelDesktopAuth();
+        setIsAuthModalOpen(false);
+      }
+    } catch (err: any) {
+      console.error("Manual token sign-in error:", err);
+      throw new Error(err.message || "Invalid authentication token.");
+    }
+  };
+
+  const startDesktopGoogleAuth = async () => {
+    cancelDesktopAuth();
+
+    // 1. Generate unique session ID and 6-digit code
+    const sessionId = "dauth_" + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const authUrl = `https://usevoicescribe.vercel.app/desktop-auth?session=${sessionId}&code=${code}`;
+
+    // 2. Register handshake in Firestore
+    try {
+      await setDoc(doc(db, "desktop_auth", sessionId), {
+        status: "pending",
+        code,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 15 * 60 * 1000,
+      });
+
+      await setDoc(doc(db, "desktop_auth_codes", code), {
+        sessionId,
+        createdAt: Date.now(),
+      });
+    } catch (err) {
+      console.warn("Could not write desktop auth session to Firestore", err);
+    }
+
+    setDesktopAuthSession({ sessionId, url: authUrl, code });
+
+    // 3. Try to open the URL in the system browser
+    try {
+      window.open(authUrl, "_blank");
+    } catch (e) {
+      console.warn("Could not automatically launch browser", e);
+    }
+
+    // 4. Listen for real-time completion
+    const sessionRef = doc(db, "desktop_auth", sessionId);
+    const unsub = onSnapshot(sessionRef, async (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.status === "completed" && data.idToken) {
+          try {
+            const googleCredential = GoogleAuthProvider.credential(data.idToken, data.accessToken || undefined);
+            const userCred = await signInWithCredential(auth, googleCredential);
+            if (userCred.user) {
+              localStorage.setItem("voicescribe_last_auth_provider", "google");
+              setLastAuthProvider("google");
+              await fetchUserData(userCred.user);
+              loadHistory(userCred.user.uid);
+              setIsAuthModalOpen(false);
+            }
+          } catch (err) {
+            console.error("Desktop auth completion error:", err);
+          } finally {
+            unsub();
+            try {
+              await deleteDoc(doc(db, "desktop_auth", sessionId));
+              await deleteDoc(doc(db, "desktop_auth_codes", code));
+            } catch {}
+            setDesktopAuthSession(null);
+            setDesktopAuthUnsub(null);
+          }
+        }
+      }
+    });
+
+    setDesktopAuthUnsub(() => unsub);
+  };
+
   const signInWithGoogle = async () => {
+    // If running in Tauri desktop application, use browser handshake to prevent WebView popup failure
+    if (isTauriDesktop()) {
+      await startDesktopGoogleAuth();
+      return;
+    }
+
     try {
       const result = await signInWithPopup(auth, googleProvider);
       if (result.user) {
@@ -403,6 +525,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    cancelDesktopAuth();
     await signOut(auth);
     setUser(null);
     setIsPro(false);
@@ -440,6 +563,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         lastAuthProvider,
         transcriptionHistory,
         deleteTranscriptionItem,
+        desktopAuthSession,
+        cancelDesktopAuth,
+        signInWithDesktopToken,
+        isDesktop: isTauriDesktop(),
       }}
     >
       {children}
