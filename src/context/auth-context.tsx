@@ -454,9 +454,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 3. Try to open the URL in the system browser
     try {
-      window.open(authUrl, "_blank");
+      const { open } = await import("@tauri-apps/plugin-shell");
+      await open(authUrl);
     } catch (e) {
-      console.warn("Could not automatically launch browser", e);
+      console.warn("Could not automatically launch browser with tauri shell plugin, falling back to window.open", e);
+      try {
+        window.open(authUrl, "_blank");
+      } catch (innerE) {
+        console.warn("Could not automatically launch browser", innerE);
+      }
     }
 
     // 4. Listen for real-time completion
