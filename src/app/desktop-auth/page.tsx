@@ -23,7 +23,7 @@ import {
   User,
   onAuthStateChanged,
 } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, setDoc, increment } from "firebase/firestore";
 import { auth, db, googleProvider } from "@/lib/firebase";
 
 function DesktopAuthContent() {
@@ -94,26 +94,82 @@ function DesktopAuthContent() {
       // Execute standard web popup sign-in
       const result = await signInWithPopup(auth, googleProvider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
-      const idToken = credential?.idToken;
-      const accessToken = credential?.accessToken;
+      const idToken = credential?.idToken || null;
+      const accessToken = credential?.accessToken || null;
 
-      if (!idToken) {
-        throw new Error("Could not retrieve Google authentication credentials. Please try again.");
+      const user = result.user;
+      const isBello = user.email?.toLowerCase() === "belloimam431@gmail.com";
+
+      // 1. Fetch or initialize the user's permanent Firestore profile
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      let isPro = isBello;
+      let planTier = isBello ? "business" : "free";
+      let usageCount = 0;
+
+      if (userSnap.exists()) {
+        const uData = userSnap.data();
+        isPro = Boolean(uData.isPro || isBello);
+        planTier = isBello ? "business" : (uData.planTier || (isPro ? "creator" : "free"));
+        usageCount = uData.usageCount || 0;
+
+        await updateDoc(userRef, {
+          authProvider: "google",
+          authMethod: "google.com",
+          googleVerified: true,
+          displayName: user.displayName || uData.displayName || "",
+          photoURL: user.photoURL || uData.photoURL || "",
+          lastLoginAt: new Date().toISOString(),
+          lastSeenAt: new Date().toISOString(),
+          loginCount: increment(1),
+          visitCount: increment(1),
+        });
+      } else {
+        const initialProfile = {
+          email: user.email || "",
+          displayName: user.displayName || "",
+          photoURL: user.photoURL || "",
+          authProvider: "google",
+          authMethod: "google.com",
+          googleVerified: true,
+          isPro,
+          planTier,
+          usageCount: 0,
+          createdAt: new Date().toISOString(),
+          lastLoginAt: new Date().toISOString(),
+          lastSeenAt: new Date().toISOString(),
+          loginCount: 1,
+          visitCount: 1,
+        };
+        await setDoc(userRef, initialProfile);
       }
 
-      setExportedToken(idToken);
-
-      // Write completion to Firestore so the desktop app's listener immediately catches it
-      const sessionRef = doc(db, "desktop_auth", activeSession);
-      await updateDoc(sessionRef, {
+      // 2. Build full payload for the Desktop app
+      const desktopPayload = {
         status: "completed",
-        idToken: idToken,
-        accessToken: accessToken || null,
-        email: result.user.email || "",
-        displayName: result.user.displayName || "",
-        photoURL: result.user.photoURL || "",
+        uid: user.uid,
+        email: user.email || "",
+        displayName: user.displayName || "",
+        photoURL: user.photoURL || "",
+        authProvider: "google",
+        authMethod: "google.com",
+        googleVerified: true,
+        isPro,
+        planTier,
+        usageCount,
+        idToken,
+        accessToken,
         completedAt: Date.now(),
-      });
+      };
+
+      // 3. Write completion to Firestore so the desktop app's listener immediately catches it
+      const sessionRef = doc(db, "desktop_auth", activeSession);
+      await updateDoc(sessionRef, desktopPayload);
+
+      // Create an easily copyable base64 token string as manual fallback
+      const tokenPayloadString = btoa(unescape(encodeURIComponent(JSON.stringify(desktopPayload))));
+      setExportedToken(tokenPayloadString);
 
       setStatus("success");
     } catch (err: any) {

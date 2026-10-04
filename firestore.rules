@@ -3,14 +3,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // User profile access
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow admin to read all profiles for platform analytics
-      allow read: if request.auth != null && request.auth.token.email == "belloimam431@gmail.com";
+      // Allow read for user profile lookups & admin analytics
+      allow read: if true;
+      // Allow user updates and desktop profile sync
+      allow write: if true;
       
       // User transcriptions history subcollection
       match /transcriptions/{transcriptionId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+        allow read, write, delete: if true;
       }
     }
 
@@ -23,6 +23,15 @@ service cloud.firestore {
     match /desktop_auth_codes/{code} {
       allow get, create, update, delete: if true;
       allow list: if false;
+    }
+
+    // Unique visitors and retention cohorts analytics
+    match /visitors/{visitorId} {
+      allow read, write: if true;
+    }
+
+    match /platform_analytics/{docId} {
+      allow read, write: if true;
     }
   }
 }

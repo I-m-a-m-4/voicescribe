@@ -31,6 +31,19 @@ const FREE_TIER_LIMIT = 2;
 
 export type PlanTier = "free" | "creator" | "business";
 
+export interface VoiceScribeUser {
+  uid: string;
+  email: string | null;
+  displayName?: string | null;
+  photoURL?: string | null;
+  isDesktopUser?: boolean;
+  authProvider?: string;
+  lastLoginAt?: string;
+  visitCount?: number;
+}
+
+export type AuthUser = User | VoiceScribeUser;
+
 export interface TranscriptionItem {
   id: string;
   fileName: string;
@@ -48,7 +61,7 @@ interface UserProfile {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
   isPro: boolean;
   isInfinite: boolean;
@@ -83,7 +96,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPro, setIsPro] = useState(false);
   const [planTier, setPlanTier] = useState<PlanTier>("free");
@@ -128,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Fetch or initialize Firestore user document with graceful offline/local fallback
-  const fetchUserData = useCallback(async (firebaseUser: User) => {
+  const fetchUserData = useCallback(async (firebaseUser: AuthUser) => {
     const isBello = firebaseUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
     // Guarantee admin infinite status immediately
@@ -195,11 +208,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Load last auth provider
-    const savedProvider = localStorage.getItem("voicescribe_last_auth_provider");
+    // 1. Immediately restore saved desktop user session on app launch
+    const savedDesktopUser = typeof window !== "undefined" ? localStorage.getItem("voicescribe_desktop_auth_user") : null;
+    if (savedDesktopUser) {
+      try {
+        const parsed = JSON.parse(savedDesktopUser);
+        if (parsed && parsed.uid) {
+          setUser(parsed);
+          const isBello = parsed.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+          setIsPro(Boolean(parsed.isPro || isBello));
+          setPlanTier(isBello ? "business" : (parsed.planTier || "free"));
+          setUsageCount(parsed.usageCount || 0);
+          loadHistory(parsed.uid);
+          fetchUserData(parsed);
+        }
+      } catch (err) {
+        console.warn("Could not parse saved desktop user", err);
+      }
+    }
+
+    // 2. Load last auth provider
+    const savedProvider = typeof window !== "undefined" ? localStorage.getItem("voicescribe_last_auth_provider") : null;
     if (savedProvider) setLastAuthProvider(savedProvider);
 
-    // Handle Auth Redirect result if popup was blocked
+    // 3. Handle Auth Redirect result if popup was blocked
     getRedirectResult(auth)
       .then(async (result) => {
         if (result?.user) {
@@ -215,13 +247,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn("Auth redirect result error:", err);
       });
 
+    // 4. Listen for Firebase Auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
       if (firebaseUser) {
+        setUser(firebaseUser);
         loadHistory(firebaseUser.uid);
         await fetchUserData(firebaseUser);
         setIsAuthModalOpen(false);
       } else {
+        // If Firebase Auth returns null (standard in desktop Tauri WebView), check for active desktop session
+        const activeDesktop = typeof window !== "undefined" ? localStorage.getItem("voicescribe_desktop_auth_user") : null;
+        if (activeDesktop) {
+          try {
+            const parsed = JSON.parse(activeDesktop);
+            if (parsed && parsed.uid) {
+              setUser(parsed);
+              loadHistory(parsed.uid);
+              setLoading(false);
+              return;
+            }
+          } catch {}
+        }
+
         loadHistory();
         const guestUsage = parseInt(localStorage.getItem("voicescribe_guest_usage") || "0", 10);
         setUsageCount(guestUsage);
@@ -319,9 +366,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setDesktopAuthSession(null);
   }, [desktopAuthUnsub]);
 
-  const signInWithDesktopToken = async (idToken: string) => {
+  const signInWithDesktopToken = async (tokenInput: string) => {
+    const trimmed = tokenInput.trim();
+    if (!trimmed) return;
+
     try {
-      const googleCredential = GoogleAuthProvider.credential(idToken);
+      // 1. Try decoding as base64 JSON payload from desktop-auth
+      try {
+        const jsonString = decodeURIComponent(escape(atob(trimmed)));
+        const data = JSON.parse(jsonString);
+        if (data && (data.uid || data.email)) {
+          const isBello = data.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+          const authenticatedUser: VoiceScribeUser = {
+            uid: data.uid || `user_${Date.now()}`,
+            email: data.email || null,
+            displayName: data.displayName || null,
+            photoURL: data.photoURL || null,
+            isDesktopUser: true,
+            authProvider: data.authProvider || "google",
+          };
+
+          localStorage.setItem("voicescribe_desktop_auth_user", JSON.stringify(authenticatedUser));
+          localStorage.setItem("voicescribe_last_auth_provider", "google");
+          setLastAuthProvider("google");
+          setUser(authenticatedUser);
+
+          const userPro = Boolean(data.isPro || isBello);
+          const resolvedTier: PlanTier = isBello
+            ? "business"
+            : (data.planTier || (userPro ? "creator" : "free"));
+          setIsPro(userPro);
+          setPlanTier(resolvedTier);
+          setUsageCount(data.usageCount || 0);
+
+          loadHistory(authenticatedUser.uid);
+          cancelDesktopAuth();
+          setIsAuthModalOpen(false);
+          return;
+        }
+      } catch {
+        // Not a base64 payload, proceed to standard Google credential check
+      }
+
+      // 2. Standard Google Auth Credential
+      const googleCredential = GoogleAuthProvider.credential(trimmed);
       const res = await signInWithCredential(auth, googleCredential);
       if (res.user) {
         localStorage.setItem("voicescribe_last_auth_provider", "google");
@@ -376,28 +464,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsub = onSnapshot(sessionRef, async (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data.status === "completed" && data.idToken) {
-          try {
-            const googleCredential = GoogleAuthProvider.credential(data.idToken, data.accessToken || undefined);
-            const userCred = await signInWithCredential(auth, googleCredential);
-            if (userCred.user) {
-              localStorage.setItem("voicescribe_last_auth_provider", "google");
-              setLastAuthProvider("google");
-              await fetchUserData(userCred.user);
-              loadHistory(userCred.user.uid);
-              setIsAuthModalOpen(false);
-            }
-          } catch (err) {
-            console.error("Desktop auth completion error:", err);
-          } finally {
-            unsub();
+        if (data.status === "completed" && (data.uid || data.email)) {
+          const isBello = data.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+          const authenticatedUser: VoiceScribeUser = {
+            uid: data.uid || `user_${Date.now()}`,
+            email: data.email || null,
+            displayName: data.displayName || null,
+            photoURL: data.photoURL || null,
+            isDesktopUser: true,
+            authProvider: data.authProvider || "google",
+          };
+
+          // Immediately persist session in localStorage so it survives app restarts
+          localStorage.setItem("voicescribe_desktop_auth_user", JSON.stringify(authenticatedUser));
+          localStorage.setItem("voicescribe_last_auth_provider", "google");
+          setLastAuthProvider("google");
+
+          // Update context state
+          setUser(authenticatedUser);
+
+          const userPro = Boolean(data.isPro || isBello);
+          const resolvedTier: PlanTier = isBello
+            ? "business"
+            : (data.planTier || (userPro ? "creator" : "free"));
+
+          setIsPro(userPro);
+          setPlanTier(resolvedTier);
+          setUsageCount(data.usageCount || 0);
+
+          loadHistory(authenticatedUser.uid);
+          setIsAuthModalOpen(false);
+
+          // Try native WebView credential exchange as best-effort bonus
+          if (data.idToken) {
             try {
-              await deleteDoc(doc(db, "desktop_auth", sessionId));
-              await deleteDoc(doc(db, "desktop_auth_codes", code));
-            } catch {}
-            setDesktopAuthSession(null);
-            setDesktopAuthUnsub(null);
+              const googleCredential = GoogleAuthProvider.credential(
+                data.idToken,
+                data.accessToken || undefined
+              );
+              await signInWithCredential(auth, googleCredential);
+            } catch (credErr) {
+              console.log("Native WebView credential exchange notice (desktop session active):", credErr);
+            }
           }
+
+          unsub();
+          try {
+            await deleteDoc(doc(db, "desktop_auth", sessionId));
+            await deleteDoc(doc(db, "desktop_auth_codes", code));
+          } catch {}
+          setDesktopAuthSession(null);
+          setDesktopAuthUnsub(null);
         }
       }
     });
@@ -526,13 +644,99 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     cancelDesktopAuth();
-    await signOut(auth);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("voicescribe_desktop_auth_user");
+    }
+    try {
+      await signOut(auth);
+    } catch {}
     setUser(null);
     setIsPro(false);
+    setPlanTier("free");
     loadHistory();
-    const guestUsage = parseInt(localStorage.getItem("voicescribe_guest_usage") || "0", 10);
+    const guestUsage = typeof window !== "undefined" ? parseInt(localStorage.getItem("voicescribe_guest_usage") || "0", 10) : 0;
     setUsageCount(guestUsage);
   };
+
+  // Track Unique People (Visitors), Frequency, and Retention Cohorts in Firestore
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const trackUniqueVisitor = async () => {
+      try {
+        const now = new Date();
+        const todayIso = now.toISOString().split("T")[0]; // "YYYY-MM-DD"
+        let visitorId = localStorage.getItem("voicescribe_visitor_id");
+        let isFirstVisit = false;
+
+        if (!visitorId) {
+          visitorId = `vis_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+          localStorage.setItem("voicescribe_visitor_id", visitorId);
+          localStorage.setItem("voicescribe_first_seen", now.toISOString());
+          isFirstVisit = true;
+        }
+
+        const firstSeen = localStorage.getItem("voicescribe_first_seen") || now.toISOString();
+        const firstSeenDate = firstSeen.split("T")[0];
+
+        // Track session frequency per browser / app launch
+        const hasSession = sessionStorage.getItem("voicescribe_session_logged");
+        let visitCount = parseInt(localStorage.getItem("voicescribe_visit_count") || "1", 10);
+        if (!hasSession) {
+          sessionStorage.setItem("voicescribe_session_logged", "true");
+          if (!isFirstVisit) {
+            visitCount += 1;
+            localStorage.setItem("voicescribe_visit_count", visitCount.toString());
+          }
+        }
+
+        const platform = isTauriDesktop() ? "desktop_windows" : "web";
+        const visitorDocRef = doc(db, "visitors", visitorId);
+
+        await setDoc(
+          visitorDocRef,
+          {
+            visitorId,
+            firstSeenAt: firstSeen,
+            firstSeenDate,
+            lastSeenAt: now.toISOString(),
+            lastSeenDate: todayIso,
+            visitCount,
+            isReturning: visitCount > 1,
+            isRegistered: Boolean(user),
+            userId: user?.uid || null,
+            email: user?.email || null,
+            displayName: user?.displayName || null,
+            authProvider: user?.email ? (lastAuthProvider || (user as any).authProvider || "google") : "guest",
+            platform,
+            updatedAt: Date.now(),
+          },
+          { merge: true }
+        );
+
+        // If registered user, update their retention and activity in users collection
+        if (user?.uid) {
+          const userDocRef = doc(db, "users", user.uid);
+          await setDoc(
+            userDocRef,
+            {
+              lastSeenAt: now.toISOString(),
+              lastSeenDate: todayIso,
+              visitCount: increment(1),
+              platform,
+              visitorId,
+            },
+            { merge: true }
+          );
+        }
+      } catch (err) {
+        console.warn("Visitor analytics tracking notice:", err);
+      }
+    };
+
+    // Run visitor tracking once mounted
+    trackUniqueVisitor();
+  }, [user, lastAuthProvider]);
 
   return (
     <AuthContext.Provider
