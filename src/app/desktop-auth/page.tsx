@@ -288,18 +288,8 @@ function DesktopAuthContent() {
                 </p>
               </div>
 
-              {/* Code or Session Info */}
-              {code ? (
-                <div className="p-3.5 rounded-xl bg-orange-500/10 border border-dashed border-orange-500/30 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <KeyRound className="w-4 h-4 text-orange-400" />
-                    <span className="text-xs text-gray-300 font-medium">Device Pairing Code:</span>
-                  </div>
-                  <span className="font-mono text-base font-bold tracking-widest text-orange-400">
-                    {code}
-                  </span>
-                </div>
-              ) : !session ? (
+              {/* Only show code input if accessed directly without any session query param */}
+              {!session ? (
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-gray-300">
                     Enter the 6-Digit Code from Desktop App:

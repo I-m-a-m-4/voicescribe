@@ -12,8 +12,6 @@ import {
   Laptop,
   Copy,
   Check,
-  KeyRound,
-  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 
@@ -157,24 +155,13 @@ export default function AuthModal() {
                 </div>
               </div>
 
-              <div>
+              <div className="space-y-1.5">
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                   Waiting for Browser Sign-In...
                 </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-xs mx-auto">
+                <p className="text-xs text-gray-500 dark:text-gray-400 max-w-xs mx-auto leading-relaxed">
                   A browser tab has been opened to sign in with Google. Once authorized, your desktop app will link automatically.
                 </p>
-              </div>
-
-              {/* Pairing Code */}
-              <div className="p-3.5 rounded-xl bg-orange-500/10 border border-dashed border-orange-500/30 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <KeyRound className="w-4 h-4 text-orange-500" />
-                  <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">Device Pairing Code:</span>
-                </div>
-                <span className="font-mono text-xl font-black text-orange-600 dark:text-orange-400 tracking-widest">
-                  {desktopAuthSession.code}
-                </span>
               </div>
 
               {/* Action Buttons */}
