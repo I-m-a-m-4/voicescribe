@@ -1,12 +1,12 @@
 {
   "name": "voicescribe",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3005",
-    "build": "next build",
+    "dev": "node api.js && next dev -p 3005",
+    "build": "node api.js && next build",
     "build:tauri": "node scripts/build-tauri.mjs",
-    "start": "next start -p 3005",
+    "start": "node api.js && next start -p 3005",
     "lint": "eslint",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
